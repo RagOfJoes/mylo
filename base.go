@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"github.com/gofrs/uuid"
+	"gorm.io/gorm"
 )
 
 type Base struct {
@@ -13,8 +14,8 @@ type Base struct {
 }
 
 type BaseSoftDelete struct {
-	ID        uuid.UUID  `json:"id" gorm:"primaryKey;type:uuid;default:uuid_generate_v4()" validate:"required"`
-	CreatedAt time.Time  `json:"created_at" gorm:"index;not null;default:current_timestamp" validate:"required"`
-	UpdatedAt *time.Time `json:"updated_at,omitempty" gorm:"index;default:null"`
-	DeletedAt *time.Time `json:"deleted_at,omitempty" gorm:"index;default:null"`
+	ID        uuid.UUID      `json:"id" gorm:"primaryKey;type:uuid;default:uuid_generate_v4()" validate:"required"`
+	CreatedAt time.Time      `json:"created_at" gorm:"index;not null;default:current_timestamp" validate:"required"`
+	UpdatedAt *time.Time     `json:"updated_at,omitempty" gorm:"index;default:null"`
+	DeletedAt gorm.DeletedAt `json:"deleted_at,omitempty" gorm:"index;default:null"`
 }
