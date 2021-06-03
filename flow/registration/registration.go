@@ -15,3 +15,11 @@ type Registration struct {
 	CSRFToken string    `json:"csrf_token" gorm:"not null" validate:"required"`
 	Form      form.Form `json:"form" gorm:"not null" validate:"required"`
 }
+
+type Repository interface {
+	Create(Registration) (*Registration, error)
+	Get(uuid.UUID) (*Registration, error)
+	Update(Registration) (*Registration, error)
+	Delete(uuid.UUID) error
+}
+
