@@ -2,15 +2,17 @@ package gorm
 
 import (
 	"github.com/RagOfJoes/idp/user/credential"
+	"github.com/RagOfJoes/idp/user/identity"
 	"github.com/gofrs/uuid"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 type gormCredentialRepository struct {
 	DB *gorm.DB
 }
 
-func NewGormUserRepository(d *gorm.DB) credential.Repository {
+func NewGormCredentialRepository(d *gorm.DB) credential.Repository {
 	return &gormCredentialRepository{DB: d}
 }
 
@@ -52,11 +54,10 @@ func (g *gormCredentialRepository) Update(n credential.Credential) (*credential.
 }
 
 func (g *gormCredentialRepository) Delete(i uuid.UUID) error {
-	str := i.String()
-	if err := g.DB.Unscoped().Where("credential_id = ?", str).Delete(credential.Identifier{}).Error; err != nil && err != gorm.ErrRecordNotFound {
+	if err := g.DB.Where("credential_id = ?", i).Delete(credential.Identifier{}).Error; err != nil && err != gorm.ErrRecordNotFound {
 		return err
 	}
-	if err := g.DB.Where("id = ?", str).Delete(credential.Credential{}).Error; err != nil && err != gorm.ErrRecordNotFound {
+	if err := g.DB.Select(clause.Associations).Delete(identity.Identity{}, "id = ?", i).Error; err != nil && err != gorm.ErrRecordNotFound {
 		return err
 	}
 	return nil

@@ -1,7 +1,6 @@
 package credential
 
 import (
-	"encoding/json"
 	"time"
 
 	"github.com/gofrs/uuid"
@@ -30,10 +29,10 @@ type Credential struct {
 	// values:
 	// 		- provider: google
 	//		- sub: 9s988s...
-	Values json.RawMessage `gorm:"not null;type:jsonb" validate:"required"`
+	Values string `gorm:"not null;type:json" validate:"required"`
 
-	IdentityID  uuid.UUID `gorm:"index;not null" validate:"required,uuid4"`
-	Identifiers []Identifier
+	IdentityID  uuid.UUID    `gorm:"index;not null" validate:"required,uuid4"`
+	Identifiers []Identifier `gorm:"constraint:OnDelete:CASCADE"`
 }
 
 // CredentialType defines a Credential Type
@@ -60,3 +59,6 @@ type Repository interface {
 	Delete(uuid.UUID) error
 }
 
+type Service interface {
+	CreatePassword(uid uuid.UUID, password string, identifiers []Identifier) (*Credential, error)
+}
