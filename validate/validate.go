@@ -1,17 +1,19 @@
 package validate
 
 import (
-	"fmt"
-	"strings"
+	"sync"
 
 	"github.com/go-playground/validator/v10"
 )
 
 // Validator singleton object
 var validate *validator.Validate
+var once sync.Once
 
 func init() {
-	New()
+	once.Do(func() {
+		New()
+	})
 }
 
 // New initializes singleton object
@@ -30,9 +32,7 @@ func Check(o interface{}) error {
 	e := validate.Struct(o)
 	if e != nil {
 		for _, ev := range e.(validator.ValidationErrors) {
-			ns := ev.Field()
-			sn := ev.StructNamespace()
-			return fmt.Errorf("[%s] invalid %s provided: %s", sn, strings.ToLower(ns), ev.Value())
+			return NewFormError(ev.Kind(), ev.Field(), ev.Tag(), ev.Param())
 		}
 	}
 	return nil
