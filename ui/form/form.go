@@ -9,12 +9,19 @@ import (
 	"github.com/RagOfJoes/idp/validate"
 )
 
-// Form
+const (
+	GET  Method = "GET"
+	PUT  Method = "PUT"
+	POST Method = "POST"
+)
+
 type Form struct {
 	Action string     `json:"action" validate:"required,url"`
-	Method string     `json:"method" validate:"required,oneof='GET' 'POST' 'PUT'"`
+	Method Method     `json:"method" validate:"required,oneof='GET' 'POST' 'PUT'"`
 	Nodes  node.Nodes `json:"nodes" validate:"required"`
 }
+
+type Method string
 
 // GORM custom data type funcs for Scanner and Valuer
 // interfaces
@@ -38,13 +45,18 @@ func (f *Form) Value() (driver.Value, error) {
 
 // Scan scans value into Form struct
 func (f *Form) Scan(src interface{}) error {
-	str, ok := src.(string)
-	if !ok {
-		return fmt.Errorf("failed to unmarshal Form value: %T", src)
+	var bytes []byte
+	switch v := src.(type) {
+	case []byte:
+		bytes = v
+	case string:
+		bytes = []byte(v)
+	default:
+		return fmt.Errorf("failed to unmarshal JSON value: %T", src)
 	}
 	// Decode stringified JSON to Form
 	var dest Form
-	err := json.Unmarshal([]byte(str), &dest)
+	err := json.Unmarshal(bytes, &dest)
 	*f = dest
 	return err
 }
