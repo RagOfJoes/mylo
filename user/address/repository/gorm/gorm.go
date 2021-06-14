@@ -14,12 +14,15 @@ func NewGormAddressRepository(d *gorm.DB) address.Repository {
 	return &gormAddressRepository{DB: d}
 }
 
-func (g *gormAddressRepository) Create(v address.VerifiableAddress) (*address.VerifiableAddress, error) {
-	n := v
-	if err := g.DB.Create(&n).Error; err != nil {
+func (g *gormAddressRepository) Create(v ...address.VerifiableAddress) ([]*address.VerifiableAddress, error) {
+	var n []*address.VerifiableAddress
+	for _, a := range v {
+		n = append(n, &a)
+	}
+	if err := g.DB.CreateInBatches(&n, len(n)).Error; err != nil {
 		return nil, err
 	}
-	return &n, nil
+	return n, nil
 }
 
 func (g *gormAddressRepository) Update(v address.VerifiableAddress) (*address.VerifiableAddress, error) {
@@ -32,18 +35,10 @@ func (g *gormAddressRepository) Update(v address.VerifiableAddress) (*address.Ve
 
 func (g *gormAddressRepository) Get(i uuid.UUID) (*address.VerifiableAddress, error) {
 	var v address.VerifiableAddress
-	if err := g.DB.First(&v, "id = ?", i.String()).Error; err != nil {
+	if err := g.DB.Where("id = ?", i).Or("identity_id = ?", i).First(&v).Error; err != nil {
 		return nil, err
 	}
 	return &v, nil
-}
-
-func (g *gormAddressRepository) GetByUser(i uuid.UUID) ([]*address.VerifiableAddress, error) {
-	var v []*address.VerifiableAddress
-	if err := g.DB.Find(&v, "identity_id = ?", i.String()).Error; err != nil {
-		return nil, err
-	}
-	return v, nil
 }
 
 func (g *gormAddressRepository) GetByAddress(s string) (*address.VerifiableAddress, error) {
@@ -63,14 +58,14 @@ func (g *gormAddressRepository) GetWithConditions(conds ...interface{}) ([]*addr
 }
 
 func (g *gormAddressRepository) Delete(i uuid.UUID) error {
-	if err := g.DB.Where("id = ?", i.String()).Delete(address.VerifiableAddress{}).Error; err != nil && err != gorm.ErrRecordNotFound {
+	if err := g.DB.Where("id = ?", i).Delete(address.VerifiableAddress{}).Error; err != nil && err != gorm.ErrRecordNotFound {
 		return err
 	}
 	return nil
 }
 
 func (g *gormAddressRepository) DeleteAllUser(i uuid.UUID) error {
-	if err := g.DB.Where("identity_id = ?", i.String()).Delete(address.VerifiableAddress{}).Error; err != nil && err != gorm.ErrRecordNotFound {
+	if err := g.DB.Where("identity_id = ?", i).Delete(address.VerifiableAddress{}).Error; err != nil && err != gorm.ErrRecordNotFound {
 		return err
 	}
 	return nil

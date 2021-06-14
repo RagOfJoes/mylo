@@ -51,20 +51,17 @@ type VerifiableAddress struct {
 	// Address is the actual address to be verified. This can
 	// be an email, phone number, etc.
 	Address    string    `json:"address" gorm:"uniqueIndex;not null;" validate:"required,min=1"`
-	IdentityID uuid.UUID `json:"-"`
+	IdentityID uuid.UUID `gorm:"index;not null" validate:"required,uuid4"`
 }
 
 type Repository interface {
 	// Create creates a new VerifiableAddress
-	Create(VerifiableAddress) (*VerifiableAddress, error)
+	Create(...VerifiableAddress) ([]*VerifiableAddress, error)
 	// Update updates a new VerifiableAddress
 	Update(VerifiableAddress) (*VerifiableAddress, error)
 	// Get retrieves a single VerifiableAddress given its
-	// id
+	// id or identity id
 	Get(uuid.UUID) (*VerifiableAddress, error)
-	// GetByUser retrieves all VerifiableAddress that a user has
-	// given an IdentityID
-	GetByUser(uuid.UUID) ([]*VerifiableAddress, error)
 	// GetByAddress retrieves a VerifiableAddress given an address
 	// value
 	GetByAddress(string) (*VerifiableAddress, error)
@@ -76,4 +73,8 @@ type Repository interface {
 	// DeleteAllUser deletes all VerifiableAddress of a User
 	// given an IdentityID
 	DeleteAllUser(uuid.UUID) error
+}
+
+type Service interface {
+	Add(...VerifiableAddress) ([]*VerifiableAddress, error)
 }
