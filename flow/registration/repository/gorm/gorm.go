@@ -22,9 +22,17 @@ func (g *gormRegistrationRepository) Create(r registration.Registration) (*regis
 	return &n, nil
 }
 
-func (g *gormRegistrationRepository) Get(i uuid.UUID) (*registration.Registration, error) {
+func (g *gormRegistrationRepository) Get(i string) (*registration.Registration, error) {
 	var n registration.Registration
-	if err := g.DB.First(&n, "id = ?", n.ID.String()).Error; err != nil {
+	if err := g.DB.First(&n, "id = ?", i).Error; err != nil {
+		return nil, err
+	}
+	return &n, nil
+}
+
+func (g *gormRegistrationRepository) GetByFlowID(i string) (*registration.Registration, error) {
+	var n registration.Registration
+	if err := g.DB.First(&n, "flow_id = ?", i).Error; err != nil {
 		return nil, err
 	}
 	return &n, nil
