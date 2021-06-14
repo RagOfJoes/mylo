@@ -1,10 +1,12 @@
 package gorm
 
 import (
+	"github.com/RagOfJoes/idp"
 	"github.com/RagOfJoes/idp/user/credential"
 	"github.com/RagOfJoes/idp/user/identity"
 	"github.com/gofrs/uuid"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 type gormUserRepository struct {
@@ -26,7 +28,7 @@ func (g *gormUserRepository) Create(u identity.Identity) (*identity.Identity, er
 func (g *gormUserRepository) Get(u uuid.UUID, c bool) (*identity.Identity, error) {
 	str := u.String()
 	var f identity.Identity
-	if err := g.DB.Find(&f, "id = ?", str).Error; err != nil {
+	if err := g.DB.Preload("Credentials").Preload("VerifiableAddresses").Find(&f, "id = ?", str).Error; err != nil {
 		return nil, err
 	}
 	if !c {
@@ -38,10 +40,10 @@ func (g *gormUserRepository) Get(u uuid.UUID, c bool) (*identity.Identity, error
 func (g *gormUserRepository) GetIdentifier(s string, c bool) (*identity.Identity, error) {
 	var i identity.Identity
 	var f credential.Credential
-	if err := g.DB.Find(&f, "value = ?", s).Error; err != nil {
+	if err := g.DB.Preload("Identifiers", "value = ?", s).First(&f).Error; err != nil {
 		return nil, err
 	}
-	if err := g.DB.Find(&i, "id = ?", f.IdentityID).Error; err != nil {
+	if err := g.DB.Preload("Credentials").Preload("VerifiableAddresses").Find(&i, "id = ?", f.IdentityID).Error; err != nil {
 		return nil, err
 	}
 	if !c {
@@ -58,9 +60,17 @@ func (g *gormUserRepository) Update(u identity.Identity) (*identity.Identity, er
 	return &i, nil
 }
 
-func (g *gormUserRepository) Delete(id uuid.UUID) error {
-	str := id.String()
-	if err := g.DB.Delete(&identity.Identity{}, str).Error; err != nil && err != gorm.ErrRecordNotFound {
+func (g *gormUserRepository) Delete(id uuid.UUID, permanent bool) error {
+	i := identity.Identity{
+		BaseSoftDelete: idp.BaseSoftDelete{
+			ID: id,
+		},
+	}
+	db := g.DB
+	if permanent {
+		db = db.Unscoped()
+	}
+	if err := db.Select(clause.Associations).Delete(&i).Error; err != nil && err != gorm.ErrRecordNotFound {
 		return err
 	}
 	return nil

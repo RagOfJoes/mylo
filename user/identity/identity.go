@@ -10,9 +10,9 @@ import (
 // Identity defines the base Identity model
 type Identity struct {
 	idp.BaseSoftDelete
-	Avatar    string `json:"avatar" gorm:"size:1024;" validate:"url,min=1,max=1024,"`
-	FirstName string `json:"first_name" gorm:"size:64;not null" validate:"required,min=1,max=64,alphanumunicode"`
-	LastName  string `json:"last_name" gorm:"size:64;not null" validate:"required,min=1,max=64,alphanumunicode"`
+	Avatar    string `json:"avatar" gorm:"size:1024;" validate:"url,min=1,max=1024"`
+	FirstName string `json:"first_name" gorm:"size:64" validate:"max=64,alphanumunicode"`
+	LastName  string `json:"last_name" gorm:"size:64" validate:"max=64,alphanumunicode"`
 	// Email is the primary email that will be used for account
 	// security related notifications
 	Email string `json:"email" gorm:"index;not null;" validate:"email,required"`
@@ -29,5 +29,10 @@ type Repository interface {
 	Get(id uuid.UUID, critical bool) (*Identity, error)
 	GetIdentifier(identifier string, critical bool) (*Identity, error)
 	Update(Identity) (*Identity, error)
-	Delete(uuid.UUID) error
+	Delete(id uuid.UUID, permanent bool) error
+}
+
+type Service interface {
+	Create(user Identity, username string, password string) (*Identity, error)
+	Find(string) (*Identity, error)
 }
