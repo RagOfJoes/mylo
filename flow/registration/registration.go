@@ -14,7 +14,7 @@ type Registration struct {
 	FlowID     string    `json:"-" gorm:"not null;uniqueIndex" validate:"required"`
 	ExpiresAt  time.Time `json:"expires_at" gorm:"index;not null" validate:"required"`
 
-	CSRFToken string    `json:"csrf_token" gorm:"not null" validate:"required"`
+	CSRFToken string    `json:"-" gorm:"not null" validate:"required"`
 	Form      form.Form `json:"form" gorm:"not null;type:json" validate:"required"`
 }
 

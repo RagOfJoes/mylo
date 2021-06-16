@@ -5,11 +5,21 @@ import (
 	"github.com/RagOfJoes/idp/ui/node"
 )
 
-func generateForm(action string) form.Form {
+func generateForm(action string, csrfToken string) form.Form {
 	f := form.Form{
 		Action: action,
 		Method: form.POST,
 		Nodes: node.Nodes{
+			{
+				Type:  node.Input,
+				Group: node.Default,
+				Attributes: &node.InputAttribute{
+					Required:   true,
+					Type:       "hidden",
+					FieldValue: csrfToken,
+					Name:       "csrf_token",
+				},
+			},
 			{
 				Type:  node.Input,
 				Group: node.Password,

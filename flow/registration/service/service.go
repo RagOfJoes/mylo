@@ -43,7 +43,7 @@ func (s *service) New(requestURL string) (*registration.Registration, error) {
 	}
 	action := fmt.Sprintf("/registration/%s", fid)
 	expire := time.Now().Add(time.Minute * 10)
-	form := generateForm(action)
+	form := generateForm(action, tok)
 	n, err := s.r.Create(registration.Registration{
 		FlowID:     fid,
 		CSRFToken:  tok,
