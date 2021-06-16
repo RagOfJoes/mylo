@@ -4,6 +4,7 @@ go 1.16
 
 require (
 	github.com/TwinProduction/go-away v1.1.2
+	github.com/alexedwards/scs/v2 v2.4.0
 	github.com/gin-gonic/gin v1.7.2
 	github.com/go-playground/validator/v10 v10.6.1
 	github.com/gofrs/uuid v4.0.0+incompatible
