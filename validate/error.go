@@ -153,22 +153,22 @@ var (
 	}
 )
 
-type FormError struct {
+type FormatError struct {
 	TagName  string       `json:"-"`
 	TagParam string       `json:"-"`
 	Kind     reflect.Kind `json:"-"`
 	Field    string       `json:"field"`
 }
 
-func NewFormError(kind reflect.Kind, field string, tag string, param string) error {
-	return &FormError{
+func NewFormatError(kind reflect.Kind, field string, tag string, param string) error {
+	return &FormatError{
 		Kind:     kind,
 		Field:    field,
 		TagName:  tag,
 		TagParam: param,
 	}
 }
-func (e *FormError) Code() string {
+func (e *FormatError) Code() string {
 	for k, v := range tagTypes {
 		for _, s := range v {
 			if s == e.TagName {
@@ -178,7 +178,7 @@ func (e *FormError) Code() string {
 	}
 	return "validation"
 }
-func (e *FormError) Error() string {
+func (e *FormatError) Error() string {
 	for k, v := range templates {
 		if k == e.TagName {
 			template := v
@@ -203,14 +203,14 @@ func (e *FormError) Error() string {
 	}
 	return fmt.Sprintf("Invalid %s value provided", e.Field)
 }
-func (e *FormError) Headers() (int, map[string]string) {
+func (e *FormatError) Headers() (int, map[string]string) {
 	return http.StatusBadRequest, map[string]string{
 		"Content-Type": "application/json; charset=utf-8",
 	}
 }
-func (e *FormError) Title() string {
-	return "form_error"
+func (e *FormatError) Title() string {
+	return "payload_format_error"
 }
-func (e *FormError) Message() string {
+func (e *FormatError) Message() string {
 	return e.Error()
 }

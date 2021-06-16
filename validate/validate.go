@@ -32,7 +32,7 @@ func Check(o interface{}) error {
 	e := validate.Struct(o)
 	if e != nil {
 		for _, ev := range e.(validator.ValidationErrors) {
-			return NewFormError(ev.Kind(), ev.Field(), ev.Tag(), ev.Param())
+			return NewFormatError(ev.Kind(), ev.Field(), ev.Tag(), ev.Param())
 		}
 	}
 	return nil

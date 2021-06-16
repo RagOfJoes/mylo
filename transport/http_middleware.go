@@ -48,8 +48,8 @@ func ErrorMiddleware() gin.HandlerFunc {
 				c.Header(k, v)
 			}
 			switch (*actualError).(type) {
-			case *validate.FormError:
-				wrap := (*actualError).(*validate.FormError)
+			case *validate.FormatError:
+				wrap := (*actualError).(*validate.FormatError)
 				c.JSON(code, HttpResponse{
 					Success: false,
 					Error: &HttpClientError{
