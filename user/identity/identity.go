@@ -15,7 +15,7 @@ type Identity struct {
 	LastName  string `json:"last_name" gorm:"size:64" validate:"max=64,alphanumunicode"`
 	// Email is the primary email that will be used for account
 	// security related notifications
-	Email string `json:"email" gorm:"index;not null;" validate:"email,required"`
+	Email string `json:"email" gorm:"uniqueIndex;not null;" validate:"email,required"`
 
 	Credentials        []credential.Credential
 	VerifiableContacts []contact.VerifiableContact
@@ -33,6 +33,7 @@ type Repository interface {
 }
 
 type Service interface {
-	Create(user Identity, username string, password string) (*Identity, error)
 	Find(string) (*Identity, error)
+	Create(user Identity, username string, password string) (*Identity, error)
+	Delete(id string, permanent bool) error
 }
