@@ -2,10 +2,9 @@ package service
 
 import (
 	"errors"
+	"runtime"
 
 	"github.com/RagOfJoes/idp"
-	"github.com/RagOfJoes/idp/user/contact"
-	"github.com/RagOfJoes/idp/user/credential"
 	"github.com/RagOfJoes/idp/user/identity"
 	goaway "github.com/TwinProduction/go-away"
 	"github.com/gofrs/uuid"
@@ -14,26 +13,23 @@ import (
 var (
 	ErrDeleteUser        = errors.New("failed to delete user")
 	ErrInvalidIdentityID = errors.New("invalid user id provided")
-	ErrCreateUser        = errors.New("failed to create a new user")
-	ErrInvalidUsername   = errors.New("invalid username provided. username is either already taken or contains invalid characters")
 	ErrInvalidIdentifier = errors.New("invalid username or email provided. username or email is either already taken or contains invalid characters")
 
+	errInvalidID = func(src error) error {
+		return idp.NewServiceClientError(src, "identity_id_invalid", "Invalid id provided", nil)
+	}
 	errInvalidUsername = func(src error) error {
 		return idp.NewServiceClientError(src, "identity_username_invalid", "Invalid username provided. Username is either already taken or contains invalid characters", nil)
 	}
 )
 
 type service struct {
-	ir  identity.Repository
-	cs  credential.Service
-	cos contact.Service
+	ir identity.Repository
 }
 
-func NewIdentityService(ir identity.Repository, cs credential.Service, cos contact.Service) identity.Service {
+func NewIdentityService(ir identity.Repository) identity.Service {
 	return &service{
-		ir:  ir,
-		cs:  cs,
-		cos: cos,
+		ir: ir,
 	}
 }
 
@@ -52,35 +48,7 @@ func (s *service) Create(i identity.Identity, username string, password string) 
 	if err != nil {
 		return nil, idp.NewServiceClientError(err, "identity_create_fail", "Invalid email/username provided", nil)
 	}
-	// 3. Create Credential
-	_, err = s.cs.CreatePassword(newUser.ID, password, []credential.Identifier{
-		{
-			Type:  "email",
-			Value: i.Email,
-		},
-		{
-			Type:  "username",
-			Value: username,
-		},
-	})
-	if err != nil {
-		s.ir.Delete(newUser.ID, true)
-		return nil, err
-	}
-	// 4. Add VerifiableAddress
-	addrs := []address.VerifiableAddress{
-		{
-			IdentityID: newUser.ID,
-			State:      address.Sent,
-			Address:    newUser.Email,
-		},
-	}
-	_, err = s.as.Add(addrs...)
-	if err != nil {
-		s.ir.Delete(newUser.ID, true)
-		return nil, err
-	}
-	// 5. Return new user
+	// 3. Return new user
 	return newUser, nil
 }
 
@@ -100,3 +68,15 @@ func (s *service) Find(i string) (*identity.Identity, error) {
 	return f, nil
 }
 
+// Delete defines a delete function for User identity
+func (s *service) Delete(i string, perm bool) error {
+	id, err := uuid.FromString(i)
+	if err != nil {
+		return errInvalidID(err)
+	}
+	if err := s.ir.Delete(id, perm); err != nil {
+		_, file, line, _ := runtime.Caller(1)
+		return idp.NewServiceInternalError(file, line, "identity_delete_fail", "Failed to delete Identity")
+	}
+	return nil
+}

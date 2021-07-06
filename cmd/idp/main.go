@@ -64,7 +64,7 @@ func main() {
 	cos := contactService.NewContactService(cor)
 	ap := credentialService.NewArgonParams(64*1024, 2, 2, 16, 32)
 	cs := credentialService.NewCredentialService(ap, cr)
-	is := identityService.NewIdentityService(ir, cs, cos)
+	is := identityService.NewIdentityService(ir)
 	rs := registrationService.NewRegistrationService(rr, cos, cs, is)
 
 	// Attach routes
