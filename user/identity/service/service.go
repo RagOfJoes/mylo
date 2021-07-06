@@ -4,7 +4,7 @@ import (
 	"errors"
 
 	"github.com/RagOfJoes/idp"
-	"github.com/RagOfJoes/idp/user/address"
+	"github.com/RagOfJoes/idp/user/contact"
 	"github.com/RagOfJoes/idp/user/credential"
 	"github.com/RagOfJoes/idp/user/identity"
 	goaway "github.com/TwinProduction/go-away"
@@ -24,16 +24,16 @@ var (
 )
 
 type service struct {
-	ir identity.Repository
-	cs credential.Service
-	as address.Service
+	ir  identity.Repository
+	cs  credential.Service
+	cos contact.Service
 }
 
-func NewIdentityService(ir identity.Repository, cs credential.Service, as address.Service) identity.Service {
+func NewIdentityService(ir identity.Repository, cs credential.Service, cos contact.Service) identity.Service {
 	return &service{
-		ir: ir,
-		cs: cs,
-		as: as,
+		ir:  ir,
+		cs:  cs,
+		cos: cos,
 	}
 }
 

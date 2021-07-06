@@ -2,7 +2,7 @@ package identity
 
 import (
 	idp "github.com/RagOfJoes/idp"
-	"github.com/RagOfJoes/idp/user/address"
+	"github.com/RagOfJoes/idp/user/contact"
 	"github.com/RagOfJoes/idp/user/credential"
 	"github.com/gofrs/uuid"
 )
@@ -17,8 +17,8 @@ type Identity struct {
 	// security related notifications
 	Email string `json:"email" gorm:"index;not null;" validate:"email,required"`
 
-	Credentials         []credential.Credential
-	VerifiableAddresses []address.VerifiableAddress
+	Credentials        []credential.Credential
+	VerifiableContacts []contact.VerifiableContact
 }
 
 // Repository defines an interface that allows

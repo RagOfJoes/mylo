@@ -2,7 +2,7 @@ package persistence
 
 import (
 	"github.com/RagOfJoes/idp/flow/registration"
-	"github.com/RagOfJoes/idp/user/address"
+	"github.com/RagOfJoes/idp/user/contact"
 	"github.com/RagOfJoes/idp/user/credential"
 	"github.com/RagOfJoes/idp/user/identity"
 	"gorm.io/driver/postgres"
@@ -31,7 +31,7 @@ func NewGorm(cfg GormConfig) (*gorm.DB, error) {
 func migrate(db *gorm.DB) error {
 	return db.AutoMigrate(
 		&identity.Identity{},
-		&address.VerifiableAddress{},
+		&contact.VerifiableContact{},
 		&credential.Identifier{},
 		&credential.Credential{},
 

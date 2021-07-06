@@ -8,6 +8,7 @@ import (
 	"github.com/RagOfJoes/idp"
 	"github.com/RagOfJoes/idp/flow/registration"
 	"github.com/RagOfJoes/idp/nanoid"
+	"github.com/RagOfJoes/idp/user/contact"
 	"github.com/RagOfJoes/idp/user/identity"
 	"github.com/RagOfJoes/idp/validate"
 )
@@ -23,12 +24,14 @@ var (
 type service struct {
 	r  registration.Repository
 	is identity.Service
+	cos contact.Service
 }
 
-func NewRegistrationService(r registration.Repository, is identity.Service) registration.Service {
+func NewRegistrationService(r registration.Repository, cos contact.Service, cs credential.Service, is identity.Service) registration.Service {
 	return &service{
 		r:  r,
 		is: is,
+		cos: cos,
 	}
 }
 

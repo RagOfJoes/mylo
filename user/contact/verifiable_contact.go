@@ -1,4 +1,4 @@
-package address
+package contact
 
 import (
 	"time"
@@ -7,21 +7,21 @@ import (
 	"github.com/gofrs/uuid"
 )
 
-type VerifiableAddressType string
-type VerifiableAddressMethod string
-type VerifiableAddressState string
+type VerifiableContactType string
+type VerifiableContactMethod string
+type VerifiableContactState string
 
 const (
-	Default VerifiableAddressType = "default"
-	Backup  VerifiableAddressType = "backup"
+	Default VerifiableContactType = "default"
+	Backup  VerifiableContactType = "backup"
 
-	Email VerifiableAddressMethod = "email"
+	Email VerifiableContactMethod = "email"
 
-	Sent      VerifiableAddressState = "sent"
-	Completed VerifiableAddressState = "completed"
+	Sent      VerifiableContactState = "sent"
+	Completed VerifiableContactState = "completed"
 )
 
-type VerifiableAddress struct {
+type VerifiableContact struct {
 	idp.Base
 	Verified   bool       `json:"verified" gorm:"default:false"`
 	VerifiedAt *time.Time `json:"verified_at" gorm:"default:null"`
@@ -36,9 +36,9 @@ type VerifiableAddress struct {
 	// "default" means this is just a verifiable address.
 	// "backup" means this address is also a backup so user's
 	// can use it for recovering accounts.
-	Type VerifiableAddressType `json:"type" gorm:"index;not null;default:default"`
+	Type VerifiableContactType `json:"type" gorm:"index;not null;default:default"`
 	// Method is the delivery method for verification
-	Method VerifiableAddressMethod `json:"method"`
+	Method VerifiableContactMethod `json:"method"`
 	// State is the current state of the verification process.
 	//
 	// enum{ "sent", "completed" }
@@ -47,7 +47,7 @@ type VerifiableAddress struct {
 	// was sent.
 	// "completed" means the verification process been fulfilled
 	// by the user.
-	State VerifiableAddressState `json:"state" gorm:"not null" validate:"oneof='sent' 'completed'"`
+	State VerifiableContactState `json:"state" gorm:"not null" validate:"oneof='sent' 'completed'"`
 	// Address is the actual address to be verified. This can
 	// be an email, phone number, etc.
 	Address    string    `json:"address" gorm:"uniqueIndex;not null;" validate:"required,min=1"`
@@ -55,26 +55,26 @@ type VerifiableAddress struct {
 }
 
 type Repository interface {
-	// Create creates a new VerifiableAddress
-	Create(...VerifiableAddress) ([]*VerifiableAddress, error)
-	// Update updates a new VerifiableAddress
-	Update(VerifiableAddress) (*VerifiableAddress, error)
-	// Get retrieves a single VerifiableAddress given its
+	// Create creates a new VerifiableContact
+	Create(...VerifiableContact) ([]*VerifiableContact, error)
+	// Update updates a new VerifiableContact
+	Update(VerifiableContact) (*VerifiableContact, error)
+	// Get retrieves a single VerifiableContact given its
 	// id or identity id
-	Get(uuid.UUID) (*VerifiableAddress, error)
-	// GetByAddress retrieves a VerifiableAddress given an address
+	Get(uuid.UUID) (*VerifiableContact, error)
+	// GetByAddress retrieves a VerifiableContact given an address
 	// value
-	GetByAddress(string) (*VerifiableAddress, error)
-	// GetWithConditions retrieves all VerifiableAddress given
+	GetByAddress(string) (*VerifiableContact, error)
+	// GetWithConditions retrieves all VerifiableContact given
 	// a custom conditional values
-	GetWithConditions(...interface{}) ([]*VerifiableAddress, error)
-	// Delete deletes a single VerifiableAddress
+	GetWithConditions(...interface{}) ([]*VerifiableContact, error)
+	// Delete deletes a single VerifiableContact
 	Delete(uuid.UUID) error
-	// DeleteAllUser deletes all VerifiableAddress of a User
+	// DeleteAllUser deletes all VerifiableContact of a User
 	// given an IdentityID
 	DeleteAllUser(uuid.UUID) error
 }
 
 type Service interface {
-	Add(...VerifiableAddress) ([]*VerifiableAddress, error)
+	Add(...VerifiableContact) ([]*VerifiableContact, error)
 }
