@@ -15,13 +15,14 @@ const (
 	Link  Type = "link"
 	Input Type = "input"
 
+	Default  Group = "default"
 	OIDC     Group = "oidc"
 	Password Group = "password"
 )
 
 type Node struct {
 	Type       Type       `json:"type" validate:"required"`
-	Group      Group      `json:"group" validate:"required,oneof='oidc' 'password'"`
+	Group      Group      `json:"group" validate:"required,oneof='default' 'oidc' 'password'"`
 	Attributes Attributes `json:"attributes" validate:"required"`
 }
 
