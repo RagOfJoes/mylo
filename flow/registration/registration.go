@@ -5,6 +5,7 @@ import (
 
 	"github.com/RagOfJoes/idp"
 	"github.com/RagOfJoes/idp/ui/form"
+	"github.com/RagOfJoes/idp/user/identity"
 	"github.com/gofrs/uuid"
 )
 
@@ -37,5 +38,5 @@ type Repository interface {
 type Service interface {
 	New(requestURL string) (*Registration, error)
 	Find(flowID string) (*Registration, error)
-	Submit(flowID string, payload RegistrationPayload) error
+	Submit(flowID string, payload RegistrationPayload) (*identity.Identity, error)
 }
