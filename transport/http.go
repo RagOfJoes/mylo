@@ -35,13 +35,13 @@ func NewHttp(cfg HttpConfig) *gin.Engine {
 
 // RunHttp runs the http server with a graceful shutdown
 // functionality
-func RunHttp(cfg HttpConfig, g *gin.Engine) error {
+func RunHttp(cfg HttpConfig, handler http.Handler) error {
 	// Create a new http server from gin engine
 	// instance
 	addr := resolveAddr(cfg)
 	srv := &http.Server{
 		Addr:    addr,
-		Handler: g,
+		Handler: handler,
 	}
 	// Setup graceful shutdown handling
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
