@@ -36,8 +36,8 @@ func (s *service) CreatePassword(uid uuid.UUID, password string, identifiers []c
 	}
 	// 2. Test password strength
 	passStrength := zxcvbn.PasswordStrength(password, ids)
-	if passStrength.Score <= 1 {
-		return nil, idp.NewServiceClientError(nil, "credential_password_invalid", "Password provided is too weak", nil)
+	if passStrength.Score <= 0 {
+		return nil, idp.NewServiceClientError(nil, "credential_password_weak", "Password provided is too weak", nil)
 	}
 	// 3. Hash password
 	newPass, err := generateFromPassword(password, &s.ap)
