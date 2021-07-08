@@ -3,7 +3,7 @@ package common
 import (
 	"reflect"
 
-	"github.com/RagOfJoes/idp/user/identity"
+	"github.com/RagOfJoes/idp/session"
 	"github.com/gin-gonic/gin"
 )
 
@@ -18,7 +18,7 @@ func UnwrapReflectValue(rv reflect.Value) reflect.Value {
 
 // IsAuthenticated checks context for identity
 func IsAuthenticated(ctx *gin.Context) bool {
-	if id, ok := ctx.Value("session_identity").(*identity.Identity); ok && id != nil {
+	if id, ok := ctx.Value("auth_session").(*session.AuthSession); ok && id != nil {
 		return true
 	}
 	return false

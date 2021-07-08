@@ -92,9 +92,9 @@ func (h *Http) submitFlow() gin.HandlerFunc {
 			c.Error(err)
 			return
 		}
-		if err := h.sm.PutIdentity(c.Request.Context(), *user, []credential.CredentialType{credential.Password}); err != nil {
+		if err := h.sm.PutAuth(c.Request.Context(), *user, []credential.CredentialType{credential.Password}); err != nil {
 			_, file, line, _ := runtime.Caller(1)
-			c.Error(transport.NewHttpInternalError(file, line, "session_identity_put", "Failed to add new Identity to Session"))
+			c.Error(transport.NewHttpInternalError(file, line, "session_auth_put", "Failed to create a new Auth Session"))
 			return
 		}
 		c.JSON(http.StatusOK, transport.HttpResponse{

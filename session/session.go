@@ -21,7 +21,9 @@ type Manager struct {
 	*scs.SessionManager
 }
 
-type Session struct {
+// AuthSession is a session object related to auth
+// state of the User
+type AuthSession struct {
 	ID              uuid.UUID         `json:"id"`
 	Active          bool              `json:"active"`
 	IssuedAt        time.Time         `json:"issued_at"`
@@ -32,13 +34,13 @@ type Session struct {
 	Credentials []credential.CredentialType `json:"-"`
 }
 
-func New(exp time.Time, i identity.Identity, c []credential.CredentialType) (*Session, error) {
+func New(exp time.Time, i identity.Identity, c []credential.CredentialType) (*AuthSession, error) {
 	uid, err := uuid.NewV4()
 	if err != nil {
 		return nil, err
 	}
 
-	newSession := Session{
+	newSession := AuthSession{
 		ID:              uid,
 		Active:          true,
 		IssuedAt:        time.Now(),
@@ -56,7 +58,7 @@ func New(exp time.Time, i identity.Identity, c []credential.CredentialType) (*Se
 //
 func NewManager(secure bool, cookieName string, lifetime time.Duration) (*Manager, error) {
 	registerSessionOnce.Do(func() {
-		gob.Register(Session{})
+		gob.Register(AuthSession{})
 	})
 
 	manager := scs.New()
@@ -71,18 +73,18 @@ func NewManager(secure bool, cookieName string, lifetime time.Duration) (*Manage
 	return &Manager{manager}, nil
 }
 
-func (m *Manager) PutIdentity(ctx context.Context, i identity.Identity, c []credential.CredentialType) error {
+func (m *Manager) PutAuth(ctx context.Context, i identity.Identity, c []credential.CredentialType) error {
 	newSession, err := New(time.Now().Add(m.Lifetime), i, c)
 	if err != nil {
 		return err
 	}
-	m.Put(ctx, "identity", newSession)
+	m.Put(ctx, "auth", newSession)
 	return nil
 }
 
-func (m *Manager) GetIdentity(ctx context.Context, strict bool) *identity.Identity {
-	// Look if context has an identity session
-	sess, ok := m.Get(ctx, "identity").(Session)
+func (m *Manager) GetAuth(ctx context.Context, strict bool) *AuthSession {
+	// Look if context has an auth session
+	sess, ok := m.Get(ctx, "auth").(AuthSession)
 	if !ok {
 		return nil
 	}
@@ -90,7 +92,7 @@ func (m *Manager) GetIdentity(ctx context.Context, strict bool) *identity.Identi
 	// Disregard status or expiration of session
 	// if strict is false
 	if !strict {
-		return &sess.Identity
+		return &sess
 	}
 
 	// Run checks to make sure session is valid
@@ -98,5 +100,5 @@ func (m *Manager) GetIdentity(ctx context.Context, strict bool) *identity.Identi
 		return nil
 	}
 
-	return &sess.Identity
+	return &sess
 }
