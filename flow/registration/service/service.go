@@ -68,10 +68,7 @@ func (s *service) Find(flowID string) (*registration.Registration, error) {
 		return nil, errInvalidFlowID
 	}
 	f, err := s.r.GetByFlowID(flowID)
-	if err != nil {
-		return nil, errInvalidFlowID
-	}
-	if f.ExpiresAt.Before(time.Now()) {
+	if err != nil || f == nil || f.ExpiresAt.Before(time.Now()) {
 		return nil, errInvalidFlowID
 	}
 	return f, nil

@@ -14,8 +14,9 @@ import (
 )
 
 var (
-	errInit           error = transport.NewHttpClientError(http.StatusInternalServerError, "registration_init_fail", "Failed to initialize registration flow", nil)
-	errInvalidPayload error = transport.NewHttpClientError(http.StatusBadRequest, "registration_payload_invalid", "Invalid payload provided", nil)
+	errInit                 error = transport.NewHttpClientError(http.StatusInternalServerError, "registration_init_fail", "Failed to initialize registration flow", nil)
+	errAlreadyAuthenticated error = transport.NewHttpClientError(http.StatusForbidden, "already_authenticated", "Cannot register since you're already authenticated", nil)
+	errInvalidPayload       error = transport.NewHttpClientError(http.StatusBadRequest, "registration_payload_invalid", "Invalid payload provided", nil)
 )
 
 type Http struct {
@@ -36,7 +37,7 @@ func NewRegistrationHttp(s registration.Service, sm *session.Manager, r *gin.Eng
 func (h *Http) initFlow() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		if common.IsAuthenticated(c) {
-			c.Error(transport.NewHttpClientError(http.StatusForbidden, "already_authenticated", "Already authenticated", nil))
+			c.Error(errAlreadyAuthenticated)
 			return
 		}
 
@@ -78,7 +79,7 @@ func (h *Http) getFlow() gin.HandlerFunc {
 func (h *Http) submitFlow(sm *session.Manager) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		if common.IsAuthenticated(c) {
-			c.Error(transport.NewHttpClientError(http.StatusForbidden, "already_authenticated", "Already authenticated", nil))
+			c.Error(errAlreadyAuthenticated)
 			return
 		}
 
@@ -98,7 +99,7 @@ func (h *Http) submitFlow(sm *session.Manager) gin.HandlerFunc {
 			c.Error(err)
 			return
 		}
-		if err := sm.PutIdentity(c.Request.Context(), *user, []credential.CredentialType{credential.Password}); err != nil {
+		if err := h.sm.PutIdentity(c.Request.Context(), *user, []credential.CredentialType{credential.Password}); err != nil {
 			_, file, line, _ := runtime.Caller(1)
 			c.Error(transport.NewHttpInternalError(file, line, "session_identity_put", "Failed to add new Identity to Session"))
 			return
