@@ -67,3 +67,24 @@ func (s *service) CreatePassword(uid uuid.UUID, password string, identifiers []c
 	}
 	return ncp, nil
 }
+
+func (s *service) ComparePassword(uid uuid.UUID, password string) error {
+	cred, err := s.cr.GetWithIdentityID(credential.Password, uid)
+	if err != nil {
+		return idp.NewServiceClientError(err, "invalid_identity", "Invalid email/username provided", nil)
+	}
+	var hashed credential.CredentialPassword
+	if err := json.Unmarshal([]byte(cred.Values), &hashed); err != nil {
+		_, file, line, _ := runtime.Caller(1)
+		return idp.NewServiceInternalError(file, line, "credential_password_fail", "Failed to decode password credential")
+	}
+	match, err := comparePasswordAndHash(password, hashed.HashedPassword)
+	if err != nil {
+		_, file, line, _ := runtime.Caller(1)
+		return idp.NewServiceInternalError(file, line, "credential_password_fail", err.Error())
+	}
+	if !match {
+		return idp.NewServiceClientError(err, "invalid_password", "Wrong password. Click on Forgot Password to reset it.", nil)
+	}
+	return nil
+}

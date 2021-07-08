@@ -61,4 +61,5 @@ type Repository interface {
 
 type Service interface {
 	CreatePassword(uid uuid.UUID, password string, identifiers []Identifier) (*Credential, error)
+	ComparePassword(uid uuid.UUID, password string) error
 }
