@@ -38,18 +38,25 @@ func (g *gormUserRepository) Get(u uuid.UUID, c bool) (*identity.Identity, error
 }
 
 func (g *gormUserRepository) GetIdentifier(s string, c bool) (*identity.Identity, error) {
-	var i identity.Identity
-	var f credential.Credential
-	if err := g.DB.Preload("Identifiers", "value = ?", s).First(&f).Error; err != nil {
+	// First check the credentials to make sure that the identifier provided is valid
+	var cred credential.Credential
+	var idenf credential.Identifier
+	if err := g.DB.First(&idenf, "value = ?", s).Error; err != nil {
 		return nil, err
 	}
-	if err := g.DB.Preload("Credentials").Preload("VerifiableAddresses").Find(&i, "id = ?", f.IdentityID).Error; err != nil {
+	if err := g.DB.First(&cred, "id = ?", idenf.CredentialID).Error; err != nil {
+		return nil, err
+	}
+
+	// Use the credential found to search for the actual identity
+	var ident identity.Identity
+	if err := g.DB.Preload("Credentials").Preload("VerifiableContacts").First(&ident, "id = ?", cred.IdentityID).Error; err != nil {
 		return nil, err
 	}
 	if !c {
-		i.Credentials = nil
+		ident.Credentials = nil
 	}
-	return &i, nil
+	return &ident, nil
 }
 
 func (g *gormUserRepository) Update(u identity.Identity) (*identity.Identity, error) {
