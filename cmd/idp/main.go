@@ -5,6 +5,9 @@ import (
 	"os"
 	"time"
 
+	loginGorm "github.com/RagOfJoes/idp/flow/login/repository/gorm"
+	loginService "github.com/RagOfJoes/idp/flow/login/service"
+	loginTransport "github.com/RagOfJoes/idp/flow/login/transport"
 	registrationGorm "github.com/RagOfJoes/idp/flow/registration/repository/gorm"
 	registrationService "github.com/RagOfJoes/idp/flow/registration/service"
 	registrationTransport "github.com/RagOfJoes/idp/flow/registration/transport"
@@ -44,6 +47,7 @@ func main() {
 	cr := credentialGorm.NewGormCredentialRepository(db)
 	ir := identityGorm.NewGormUserRepository(db)
 	rr := registrationGorm.NewGormRegistrationRepository(db)
+	lr := loginGorm.NewGormLoginRepository(db)
 	// Setup services
 	cos := contactService.NewContactService(cor)
 	ap := credentialService.NewArgonParams(64*1024, 2, 2, 16, 32)
@@ -52,6 +56,7 @@ func main() {
 	// Flow Services
 	// These will essentially stitch all other services together
 	rs := registrationService.NewRegistrationService(rr, cos, cs, is)
+	ls := loginService.NewLoginService(lr, cos, cs, is)
 
 	// Setup HTTP transport
 	// Create session manager
@@ -80,6 +85,7 @@ func main() {
 
 	// Attach routes
 	registrationTransport.NewRegistrationHttp(rs, sessionManager, ginEng)
+	loginTransport.NewLoginHttp(ls, sessionManager, ginEng)
 
 	// Start HTTP server
 	if err := transport.RunHttp(httpSrvCfg, sessionManager.LoadAndSave(ginEng)); err != nil {

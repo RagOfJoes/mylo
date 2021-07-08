@@ -1,6 +1,7 @@
 package persistence
 
 import (
+	"github.com/RagOfJoes/idp/flow/login"
 	"github.com/RagOfJoes/idp/flow/registration"
 	"github.com/RagOfJoes/idp/user/contact"
 	"github.com/RagOfJoes/idp/user/credential"
@@ -35,6 +36,7 @@ func migrate(db *gorm.DB) error {
 		&credential.Identifier{},
 		&credential.Credential{},
 
+		&login.Login{},
 		&registration.Registration{},
 	)
 }
