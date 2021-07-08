@@ -39,22 +39,6 @@ func main() {
 		return
 	}
 
-	// Create session
-	sessionManager, err := session.NewManager(false, "sid", time.Hour*24*14)
-	if err != nil {
-		log.Panic(err)
-	}
-
-	httpSrvCfg := transport.HttpConfig{
-		Host:   os.Getenv("HOST"),
-		Port:   os.Getenv("PORT"),
-		Scheme: os.Getenv("SCHEME"),
-
-		RemoveExtraSlashes: true,
-	}
-	ginEng := transport.NewHttp(httpSrvCfg)
-	ginEng.Use(transport.RateLimiterMiddleware(100), transport.ErrorMiddleware(), session.AuthMiddleware(sessionManager))
-
 	// Setup repositories
 	cor := contactGorm.NewGormContactRepository(db)
 	cr := credentialGorm.NewGormCredentialRepository(db)
@@ -65,12 +49,39 @@ func main() {
 	ap := credentialService.NewArgonParams(64*1024, 2, 2, 16, 32)
 	cs := credentialService.NewCredentialService(ap, cr)
 	is := identityService.NewIdentityService(ir)
+	// Flow Services
+	// These will essentially stitch all other services together
 	rs := registrationService.NewRegistrationService(rr, cos, cs, is)
+
+	// Setup HTTP transport
+	// Create session manager
+	sessionManager, err := session.NewManager(false, "sid", time.Hour*24*14)
+	if err != nil {
+		log.Panic(err)
+	}
+	// Setup HTTP config
+	httpSrvCfg := transport.HttpConfig{
+		Host:   os.Getenv("HOST"),
+		Port:   os.Getenv("PORT"),
+		Scheme: os.Getenv("SCHEME"),
+
+		RemoveExtraSlashes: true,
+	}
+	// Setup HTTP Server
+	ginEng := transport.NewHttp(httpSrvCfg)
+	// Attach Middlewares
+	//
+	// Order of execution:
+	// 1. Rate Limiter
+	// 2. Auth Middleware (Checks session for identity if found then passes to context)
+	// 3. Execute route
+	// 4. Error Middleware handles any errors that were generated from route execution
+	ginEng.Use(transport.RateLimiterMiddleware(100), session.AuthMiddleware(sessionManager), transport.ErrorMiddleware())
 
 	// Attach routes
 	registrationTransport.NewRegistrationHttp(rs, sessionManager, ginEng)
 
-	// Start server
+	// Start HTTP server
 	if err := transport.RunHttp(httpSrvCfg, sessionManager.LoadAndSave(ginEng)); err != nil {
 		log.Panic(err)
 	}
