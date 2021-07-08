@@ -57,13 +57,13 @@ func (s *service) Find(i string) (*identity.Identity, error) {
 	if err == nil {
 		f, err := s.ir.Get(uid, false)
 		if err != nil {
-			return nil, err
+			return nil, idp.NewServiceClientError(err, "identity_find_fail", "Invalid ID provided", nil)
 		}
 		return f, nil
 	}
 	f, err := s.ir.GetIdentifier(i, false)
 	if err != nil {
-		return nil, err
+		return nil, idp.NewServiceClientError(err, "identity_find_fail", "Invalid email/username provided", nil)
 	}
 	return f, nil
 }
