@@ -18,7 +18,7 @@ func UnwrapReflectValue(rv reflect.Value) reflect.Value {
 
 // IsAuthenticated checks context for identity
 func IsAuthenticated(ctx *gin.Context) bool {
-	if id, ok := ctx.Value("auth_session").(*session.AuthSession); ok && id != nil {
+	if sess, ok := ctx.Value("auth_session").(*session.AuthSession); ok && sess != nil {
 		return true
 	}
 	return false
