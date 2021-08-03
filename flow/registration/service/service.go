@@ -98,11 +98,11 @@ func (s *service) Submit(flowID string, payload registration.RegistrationPayload
 	go func() {
 		defer close(chanErr)
 		// 4. Create a new verifiable contact with email provided
-		_, err = s.cos.Add([]contact.VerifiableContact{
+		vc, err := s.cos.Add([]contact.VerifiableContact{
 			{
 				IdentityID: newUser.ID,
 				State:      contact.Sent,
-				Address:    payload.Email,
+				Value:      payload.Email,
 			},
 		}...)
 		if err != nil {
@@ -112,8 +112,9 @@ func (s *service) Submit(flowID string, payload registration.RegistrationPayload
 			chanErr <- err
 			return
 		}
+
 		// 5. Create a new password credential
-		_, err = s.cs.CreatePassword(newUser.ID, payload.Password, []credential.Identifier{
+		cr, err := s.cs.CreatePassword(newUser.ID, payload.Password, []credential.Identifier{
 			{
 				Type:  "email",
 				Value: payload.Email,
@@ -130,6 +131,15 @@ func (s *service) Submit(flowID string, payload registration.RegistrationPayload
 			chanErr <- err
 			return
 		}
+
+		// 6. Append VerifiableContacts and Credentials to Identity
+		// This is to mimic the behavior for the all subsequent flows
+		var vcf []contact.VerifiableContact
+		for _, c := range vc {
+			vcf = append(vcf, *c)
+		}
+		newUser.VerifiableContacts = vcf
+		newUser.Credentials = append(newUser.Credentials, *cr)
 	}()
 	if err := <-chanErr; err != nil {
 		s.is.Delete(newUser.ID.String(), true)

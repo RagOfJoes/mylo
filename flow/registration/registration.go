@@ -20,6 +20,7 @@ type Registration struct {
 }
 
 type RegistrationPayload struct {
+	CSRFToken string `json:"csrf_token" form:"csrf_token" binding:"required" validate:"required"`
 	Email     string `json:"email" form:"email" binding:"required" validate:"required,min=1,email"`
 	Username  string `json:"username" form:"username" binding:"required" validate:"required,min=4,max=20,alphanum"`
 	FirstName string `json:"first_name" form:"first_name" validate:"max=64,alphanumunicode"`

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/http"
 	"runtime"
+	"time"
 
 	"github.com/RagOfJoes/idp/common"
 	"github.com/RagOfJoes/idp/flow/registration"
@@ -13,8 +14,13 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+const (
+	registrationFlowIDCookie string = "registrationFid"
+)
+
 var (
 	errInit                 error = transport.NewHttpClientError(http.StatusInternalServerError, "registration_init_fail", "Failed to initialize registration flow", nil)
+	errInvalidCSRFToken     error = transport.NewHttpClientError(http.StatusBadRequest, "invalid_csrf", "Invalid CSRF Token provided", nil)
 	errAlreadyAuthenticated error = transport.NewHttpClientError(http.StatusForbidden, "already_authenticated", "Cannot register since you're already authenticated", nil)
 	errInvalidPayload       error = transport.NewHttpClientError(http.StatusBadRequest, "registration_payload_invalid", "Invalid payload provided", nil)
 )
@@ -41,6 +47,19 @@ func (h *Http) initFlow() gin.HandlerFunc {
 			return
 		}
 
+		fidCookie, err := c.Cookie(registrationFlowIDCookie)
+		if err != http.ErrNoCookie && fidCookie != "" {
+			f, err := h.s.Find(fidCookie)
+			if err == nil {
+				resp := transport.HttpResponse{
+					Success: true,
+					Payload: f,
+				}
+				c.JSON(http.StatusOK, resp)
+				return
+			}
+		}
+
 		reqURL := c.Request.URL.Path
 		reqQuery := c.Request.URL.Query().Encode()
 		fullURL := reqURL
@@ -56,6 +75,8 @@ func (h *Http) initFlow() gin.HandlerFunc {
 			Success: true,
 			Payload: newFlow,
 		}
+
+		c.SetCookie(registrationFlowIDCookie, newFlow.FlowID, int(time.Until(newFlow.ExpiresAt)/time.Second), "/registration", "", false, false)
 		c.JSON(http.StatusOK, resp)
 	}
 }
@@ -63,6 +84,7 @@ func (h *Http) initFlow() gin.HandlerFunc {
 func (h *Http) getFlow() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		fid := c.Param("flow_id")
+
 		f, err := h.s.Find(fid)
 		if err != nil {
 			c.Error(err)
@@ -83,29 +105,47 @@ func (h *Http) submitFlow(sm *session.Manager) gin.HandlerFunc {
 			return
 		}
 
+		// Validate flow id
 		fid := c.Param("flow_id")
-		_, err := h.s.Find(fid)
+		flow, err := h.s.Find(fid)
 		if err != nil {
 			c.Error(err)
 			return
 		}
+		// Validate that all the required
+		// inputs are present
 		var dest registration.RegistrationPayload
 		if err := c.ShouldBind(&dest); err != nil {
 			c.Error(errInvalidPayload)
 			return
 		}
+		// Check the csrf token is valid
+		// TODO: Determine whether or not to invalidate flow when an invalid CSRF token is passed
+		if dest.CSRFToken != flow.CSRFToken {
+			c.Error(errInvalidCSRFToken)
+			return
+		}
+
 		user, err := h.s.Submit(fid, dest)
 		if err != nil {
 			c.Error(err)
 			return
 		}
-		if err := h.sm.PutAuth(c.Request.Context(), *user, []credential.CredentialType{credential.Password}); err != nil {
+
+		// Clone gin's raw Context to allow session manager to manipulate it
+		// Update request with updated context
+		cpy := c.Request.Context()
+		if err := h.sm.PutAuth(cpy, *user, []credential.CredentialType{credential.Password}); err != nil {
 			_, file, line, _ := runtime.Caller(1)
 			c.Error(transport.NewHttpInternalError(file, line, "session_auth_put", "Failed to create a new Auth Session"))
 			return
 		}
-		c.JSON(http.StatusOK, transport.HttpResponse{
+		c.Request = c.Request.WithContext(cpy)
+
+		sess := h.sm.GetAuth(c.Request.Context(), true)
+		c.JSON(http.StatusCreated, transport.HttpResponse{
 			Success: true,
+			Payload: sess,
 		})
 	}
 }
