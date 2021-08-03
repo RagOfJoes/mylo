@@ -8,8 +8,8 @@ import (
 // and passes it to context
 func AuthMiddleware(sm *Manager) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		id := sm.GetAuth(c.Request.Context(), true)
-		c.Set("auth_session", id)
+		sess := sm.GetAuth(c.Request.Context(), true)
+		c.Set("auth_session", sess)
 
 		c.Next()
 	}

@@ -7,6 +7,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/RagOfJoes/idp/user/contact"
 	"github.com/RagOfJoes/idp/user/credential"
 	"github.com/RagOfJoes/idp/user/identity"
 	"github.com/alexedwards/scs/v2"
@@ -32,9 +33,12 @@ type AuthSession struct {
 	Identity        identity.Identity `json:"identity"`
 	// Credentials used to authenticate user
 	Credentials []credential.CredentialType `json:"-"`
+	// VerifiableContacts are contact methods be it
+	// email, sms, etc.
+	VerifiableContacts []contact.VerifiableContact `json:"verifiable_contacts"`
 }
 
-func New(exp time.Time, i identity.Identity, c []credential.CredentialType) (*AuthSession, error) {
+func New(exp time.Time, i identity.Identity, c []credential.CredentialType, v []contact.VerifiableContact) (*AuthSession, error) {
 	uid, err := uuid.NewV4()
 	if err != nil {
 		return nil, err
@@ -48,8 +52,9 @@ func New(exp time.Time, i identity.Identity, c []credential.CredentialType) (*Au
 		// ExpiresAt 2 weeks
 		ExpiresAt: exp,
 
-		Identity:    i,
-		Credentials: c,
+		Identity:           i,
+		Credentials:        c,
+		VerifiableContacts: v,
 	}
 	return &newSession, nil
 }
@@ -74,11 +79,16 @@ func NewManager(secure bool, cookieName string, lifetime time.Duration) (*Manage
 }
 
 func (m *Manager) PutAuth(ctx context.Context, i identity.Identity, c []credential.CredentialType) error {
-	newSession, err := New(time.Now().Add(m.Lifetime), i, c)
-	if err != nil {
+	// Separate contacts from the identity
+	// to ease readbility
+	vc := i.VerifiableContacts
+	i.VerifiableContacts = nil
+
+	newSession, err := New(time.Now().Add(m.Lifetime), i, c, vc)
+	if err != nil || newSession == nil {
 		return err
 	}
-	m.Put(ctx, "auth", newSession)
+	m.Put(ctx, "auth", *newSession)
 	return nil
 }
 
