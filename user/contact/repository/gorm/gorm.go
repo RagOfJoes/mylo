@@ -41,9 +41,9 @@ func (g *gormContactRepository) Get(i uuid.UUID) (*contact.VerifiableContact, er
 	return &v, nil
 }
 
-func (g *gormContactRepository) GetByAddress(s string) (*contact.VerifiableContact, error) {
+func (g *gormContactRepository) GetByValue(s string) (*contact.VerifiableContact, error) {
 	var v contact.VerifiableContact
-	if err := g.DB.First(&v, "address = ? ", s).Error; err != nil {
+	if err := g.DB.First(&v, "value = ? ", s).Error; err != nil {
 		return nil, err
 	}
 	return &v, nil
