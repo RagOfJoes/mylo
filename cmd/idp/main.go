@@ -20,6 +20,7 @@ import (
 	credentialService "github.com/RagOfJoes/idp/user/credential/service"
 	identityGorm "github.com/RagOfJoes/idp/user/identity/repository/gorm"
 	identityService "github.com/RagOfJoes/idp/user/identity/service"
+	identityTransport "github.com/RagOfJoes/idp/user/identity/transport"
 	"github.com/alexedwards/scs/redisstore"
 	_ "github.com/go-playground/validator/v10"
 	"github.com/gomodule/redigo/redis"
@@ -80,6 +81,7 @@ func main() {
 	if err != nil {
 		log.Panic(err)
 	}
+
 	// Setup HTTP config
 	httpSrvCfg := transport.HttpConfig{
 		Host:   os.Getenv("HOST"),
@@ -100,6 +102,7 @@ func main() {
 	ginEng.Use(transport.RateLimiterMiddleware(100), session.AuthMiddleware(sessionManager), transport.ErrorMiddleware())
 
 	// Attach routes
+	identityTransport.NewIdentityHttp(sessionManager, ginEng)
 	registrationTransport.NewRegistrationHttp(rs, sessionManager, ginEng)
 	loginTransport.NewLoginHttp(ls, sessionManager, ginEng)
 
