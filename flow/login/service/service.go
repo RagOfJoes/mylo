@@ -75,19 +75,30 @@ func (s *service) Find(flowID string) (*login.Login, error) {
 }
 
 func (s *service) Submit(flowID string, payload login.LoginPayload) (*identity.Identity, error) {
-	_, err := s.Find(flowID)
+	// 1. Ensure that the flow is still valid
+	flow, err := s.Find(flowID)
 	if err != nil {
 		return nil, err
 	}
+	// 2. Validate payload provided
 	if err := validate.Check(payload); err != nil {
 		return nil, err
 	}
+	// 3.Retrieve identity based on identifier provided
 	id, err := s.is.Find(payload.Identifier)
 	if err != nil {
 		return nil, err
 	}
+	// 4. Use retrieved identity ID to then retrieve
+	// the hashed password credential then decode it
+	// and compare provided password attempt
 	if err := s.cs.ComparePassword(id.ID, payload.Password); err != nil {
 		return nil, err
+	}
+	// 5. If everything passes then delete flow
+	if err := s.r.Delete(flow.ID); err != nil {
+		_, file, line, _ := runtime.Caller(1)
+		return nil, idp.NewServiceInternalError(file, line, "login_delete_fail", "Failed to delete registration flow")
 	}
 	return id, nil
 }

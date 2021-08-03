@@ -20,6 +20,7 @@ type Login struct {
 }
 
 type LoginPayload struct {
+	CSRFToken  string `json:"csrf_token" form:"csrf_token" binding:"required" validate:"required"`
 	Identifier string `json:"identifier" form:"identifier" binding:"required" validate:"required,min=1,max=20"`
 	Password   string `json:"password" form:"password" binding:"required" validate:"required,min=6,max=128"`
 }
