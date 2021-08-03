@@ -17,8 +17,8 @@ type Identity struct {
 	// security related notifications
 	Email string `json:"email" gorm:"uniqueIndex;not null;" validate:"email,required"`
 
-	Credentials        []credential.Credential
-	VerifiableContacts []contact.VerifiableContact
+	Credentials        []credential.Credential     `json:"-"`
+	VerifiableContacts []contact.VerifiableContact `json:"-"`
 }
 
 // Repository defines an interface that allows

@@ -28,7 +28,7 @@ func (g *gormUserRepository) Create(u identity.Identity) (*identity.Identity, er
 func (g *gormUserRepository) Get(u uuid.UUID, c bool) (*identity.Identity, error) {
 	str := u.String()
 	var f identity.Identity
-	if err := g.DB.Preload("Credentials").Preload("VerifiableAddresses").Find(&f, "id = ?", str).Error; err != nil {
+	if err := g.DB.Preload("Credentials").Preload("VerifiableContacts").Find(&f, "id = ?", str).Error; err != nil {
 		return nil, err
 	}
 	if !c {
