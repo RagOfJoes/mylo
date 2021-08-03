@@ -20,7 +20,9 @@ import (
 	credentialService "github.com/RagOfJoes/idp/user/credential/service"
 	identityGorm "github.com/RagOfJoes/idp/user/identity/repository/gorm"
 	identityService "github.com/RagOfJoes/idp/user/identity/service"
+	"github.com/alexedwards/scs/redisstore"
 	_ "github.com/go-playground/validator/v10"
+	"github.com/gomodule/redigo/redis"
 	"github.com/joho/godotenv"
 )
 
@@ -60,7 +62,21 @@ func main() {
 
 	// Setup HTTP transport
 	// Create session manager
+	pool := &redis.Pool{
+		MaxIdle: 10,
+		Dial: func() (redis.Conn, error) {
+			conn, err := redis.Dial("tcp", os.Getenv("REDIS_URL"))
+			if err != nil {
+				return nil, err
+			}
+			if _, err := conn.Do("AUTH", os.Getenv("REDIS_PASSWORD")); err != nil {
+				return nil, err
+			}
+			return conn, nil
+		},
+	}
 	sessionManager, err := session.NewManager(false, "sid", time.Hour*24*14)
+	sessionManager.Store = redisstore.New(pool)
 	if err != nil {
 		log.Panic(err)
 	}
