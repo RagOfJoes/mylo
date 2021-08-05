@@ -20,7 +20,6 @@ const (
 
 var (
 	errInit                 error = transport.NewHttpClientError(http.StatusInternalServerError, "registration_init_fail", "Failed to initialize registration flow", nil)
-	errInvalidCSRFToken     error = transport.NewHttpClientError(http.StatusBadRequest, "invalid_csrf", "Invalid CSRF Token provided", nil)
 	errAlreadyAuthenticated error = transport.NewHttpClientError(http.StatusForbidden, "already_authenticated", "Cannot register since you're already authenticated", nil)
 	errInvalidPayload       error = transport.NewHttpClientError(http.StatusBadRequest, "registration_payload_invalid", "Invalid payload provided", nil)
 )
@@ -107,7 +106,7 @@ func (h *Http) submitFlow(sm *session.Manager) gin.HandlerFunc {
 
 		// Validate flow id
 		fid := c.Param("flow_id")
-		flow, err := h.s.Find(fid)
+		_, err := h.s.Find(fid)
 		if err != nil {
 			c.Error(err)
 			return
@@ -117,12 +116,6 @@ func (h *Http) submitFlow(sm *session.Manager) gin.HandlerFunc {
 		var dest registration.RegistrationPayload
 		if err := c.ShouldBind(&dest); err != nil {
 			c.Error(errInvalidPayload)
-			return
-		}
-		// Check the csrf token is valid
-		// TODO: Determine whether or not to invalidate flow when an invalid CSRF token is passed
-		if dest.CSRFToken != flow.CSRFToken {
-			c.Error(errInvalidCSRFToken)
 			return
 		}
 

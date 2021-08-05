@@ -39,20 +39,15 @@ func NewLoginService(r login.Repository, cos contact.Service, cs credential.Serv
 }
 
 func (s *service) New(requestURL string) (*login.Login, error) {
-	tok, err := nanoid.New()
-	if err != nil {
-		return nil, errNanoIDGen()
-	}
 	fid, err := nanoid.New()
 	if err != nil {
 		return nil, errNanoIDGen()
 	}
 	action := fmt.Sprintf("/login/%s", fid)
 	expire := time.Now().Add(time.Minute * 10)
-	form := generateForm(action, tok)
+	form := generateForm(action)
 	n, err := s.r.Create(login.Login{
 		FlowID:     fid,
-		CSRFToken:  tok,
 		Form:       form,
 		ExpiresAt:  expire,
 		RequestURL: requestURL,

@@ -39,20 +39,15 @@ func NewRegistrationService(r registration.Repository, cos contact.Service, cs c
 }
 
 func (s *service) New(requestURL string) (*registration.Registration, error) {
-	tok, err := nanoid.New()
-	if err != nil {
-		return nil, errNanoIDGen()
-	}
 	fid, err := nanoid.New()
 	if err != nil {
 		return nil, errNanoIDGen()
 	}
 	action := fmt.Sprintf("/registration/%s", fid)
 	expire := time.Now().Add(time.Minute * 10)
-	form := generateForm(action, tok)
+	form := generateForm(action)
 	n, err := s.r.Create(registration.Registration{
 		FlowID:     fid,
-		CSRFToken:  tok,
 		Form:       form,
 		ExpiresAt:  expire,
 		RequestURL: requestURL,
@@ -106,13 +101,8 @@ func (s *service) Submit(flowID string, payload registration.RegistrationPayload
 			},
 		}...)
 		if err != nil {
-			// 4a. If an error is returned
-			// then delete the Identity that
-			// was created
-			chanErr <- err
 			return
 		}
-
 		// 5. Create a new password credential
 		cr, err := s.cs.CreatePassword(newUser.ID, payload.Password, []credential.Identifier{
 			{
@@ -125,13 +115,9 @@ func (s *service) Submit(flowID string, payload registration.RegistrationPayload
 			},
 		})
 		if err != nil {
-			// 5a. If an error is returned
-			// then delete the Identity that
-			// was created
 			chanErr <- err
 			return
 		}
-
 		// 6. Append VerifiableContacts and Credentials to Identity
 		// This is to mimic the behavior for the all subsequent flows
 		var vcf []contact.VerifiableContact
@@ -141,11 +127,13 @@ func (s *service) Submit(flowID string, payload registration.RegistrationPayload
 		newUser.VerifiableContacts = vcf
 		newUser.Credentials = append(newUser.Credentials, *cr)
 	}()
+	// 7. If an error has occurred while adding new verifiable
+	// contact or new password credential then delete identity
 	if err := <-chanErr; err != nil {
 		s.is.Delete(newUser.ID.String(), true)
 		return nil, err
 	}
-	// 6. If everything passes then delete flow
+	// 8. If everything passes then delete flow
 	if err := s.r.Delete(flow.ID); err != nil {
 		_, file, line, _ := runtime.Caller(1)
 		return nil, idp.NewServiceInternalError(file, line, "registration_delete_fail", "Failed to delete registration flow")
