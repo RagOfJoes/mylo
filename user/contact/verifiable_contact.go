@@ -51,7 +51,7 @@ type VerifiableContact struct {
 	// Value is the actual value to be verified. This can
 	// be an email, phone number, etc.
 	Value      string    `json:"value" gorm:"uniqueIndex;not null;" validate:"required,min=1"`
-	IdentityID uuid.UUID `gorm:"index;not null" validate:"required,uuid4"`
+	IdentityID uuid.UUID `json:"-" gorm:"index;not null" validate:"required,uuid4"`
 }
 
 type Repository interface {
