@@ -14,13 +14,13 @@ type Attributes interface {
 //
 // Example: Username input
 type InputAttribute struct {
-	Name       string `json:"name" validate:"required"`
-	Type       string `json:"type" validate:"required"`
-	Label      string `json:"label"`
-	FieldValue string `json:"value"`
-	Required   bool   `json:"required"`
-	Pattern    string `json:"pattern"`
-	Disabled   bool   `json:"disabled"`
+	Name     string `json:"name" validate:"required"`
+	Type     string `json:"type" validate:"required"`
+	Label    string `json:"label"`
+	Value    string `json:"value,omitempty"`
+	Required bool   `json:"required"`
+	Pattern  string `json:"pattern"`
+	Disabled bool   `json:"disabled"`
 }
 
 // LinkAttribute defines the structure for a
@@ -40,13 +40,13 @@ func (i *InputAttribute) ID() string {
 	return i.Name
 }
 func (i *InputAttribute) Reset() {
-	i.FieldValue = ""
+	i.Value = ""
 }
 func (i *InputAttribute) GetValue() interface{} {
-	return i.FieldValue
+	return i.Value
 }
 func (i *InputAttribute) SetValue(value interface{}) {
-	i.FieldValue, _ = value.(string)
+	i.Value, _ = value.(string)
 }
 
 func (l *LinkAttribute) ID() string {
