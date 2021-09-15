@@ -2,15 +2,18 @@ package transport
 
 import (
 	"fmt"
+	"log"
 	"net/http"
 	"runtime"
 	"time"
 
-	"github.com/RagOfJoes/idp/common"
 	"github.com/RagOfJoes/idp/flow/registration"
+	"github.com/RagOfJoes/idp/flow/verification"
+	"github.com/RagOfJoes/idp/internal/config"
 	"github.com/RagOfJoes/idp/session"
 	"github.com/RagOfJoes/idp/transport"
 	"github.com/RagOfJoes/idp/user/credential"
+	"github.com/RagOfJoes/idp/user/identity"
 	"github.com/gin-gonic/gin"
 )
 
@@ -27,21 +30,28 @@ var (
 type Http struct {
 	sm *session.Manager
 	s  registration.Service
+	vs verification.Service
 }
 
-func NewRegistrationHttp(s registration.Service, sm *session.Manager, r *gin.Engine) {
+func NewRegistrationHttp(s registration.Service, vs verification.Service, sm *session.Manager, r *gin.Engine) {
+	cfg := config.Get()
 	h := &Http{
 		s:  s,
+		vs: vs,
 		sm: sm,
 	}
-	r.GET("/registration", h.initFlow())
-	r.GET("/registration/:flow_id", h.getFlow())
-	r.POST("/registration/:flow_id", h.submitFlow(sm))
+
+	group := r.Group(fmt.Sprintf("/%s", cfg.Registration.URL))
+	{
+		group.GET("/", h.initFlow())
+		group.GET("/:flow_id", h.getFlow())
+		group.POST("/:flow_id", h.submitFlow())
+	}
 }
 
 func (h *Http) initFlow() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		if common.IsAuthenticated(c) {
+		if transport.IsAuthenticated(c) != nil {
 			c.Error(errAlreadyAuthenticated)
 			return
 		}
@@ -97,20 +107,15 @@ func (h *Http) getFlow() gin.HandlerFunc {
 	}
 }
 
-func (h *Http) submitFlow(sm *session.Manager) gin.HandlerFunc {
+func (h *Http) submitFlow() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		if common.IsAuthenticated(c) {
+		if transport.IsAuthenticated(c) != nil {
 			c.Error(errAlreadyAuthenticated)
 			return
 		}
 
 		// Validate flow id
 		fid := c.Param("flow_id")
-		_, err := h.s.Find(fid)
-		if err != nil {
-			c.Error(err)
-			return
-		}
 		// Validate that all the required
 		// inputs are present
 		var dest registration.RegistrationPayload
@@ -118,7 +123,7 @@ func (h *Http) submitFlow(sm *session.Manager) gin.HandlerFunc {
 			c.Error(errInvalidPayload)
 			return
 		}
-
+		// Submit flow
 		user, err := h.s.Submit(fid, dest)
 		if err != nil {
 			c.Error(err)
@@ -126,16 +131,16 @@ func (h *Http) submitFlow(sm *session.Manager) gin.HandlerFunc {
 		}
 
 		// Clone gin's raw Context to allow session manager to manipulate it
-		// Update request with updated context
+		// Then update request with updated context
 		cpy := c.Request.Context()
-		if err := h.sm.PutAuth(cpy, *user, []credential.CredentialType{credential.Password}); err != nil {
+		sess, err := h.sm.Insert(cpy, user, []credential.CredentialType{credential.Password})
+		if err != nil {
 			_, file, line, _ := runtime.Caller(1)
-			c.Error(transport.NewHttpInternalError(file, line, "session_auth_put", "Failed to create a new Auth Session"))
+			c.Error(transport.NewHttpInternalError(file, line, "session_insert", "Failed to create a new Auth Session"))
 			return
 		}
 		c.Request = c.Request.WithContext(cpy)
 
-		sess := h.sm.GetAuth(c.Request.Context(), true)
 		c.JSON(http.StatusCreated, transport.HttpResponse{
 			Success: true,
 			Payload: sess,

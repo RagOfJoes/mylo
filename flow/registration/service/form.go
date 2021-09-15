@@ -34,9 +34,10 @@ func generateForm(action string) form.Form {
 				Type:  node.Input,
 				Group: node.Password,
 				Attributes: &node.InputAttribute{
-					Type:  "password",
-					Name:  "password",
-					Label: "Password",
+					Required: true,
+					Type:     "password",
+					Name:     "password",
+					Label:    "Password",
 				},
 			},
 			{

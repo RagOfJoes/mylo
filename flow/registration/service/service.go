@@ -5,20 +5,22 @@ import (
 	"runtime"
 	"time"
 
-	"github.com/RagOfJoes/idp"
 	"github.com/RagOfJoes/idp/flow/registration"
-	"github.com/RagOfJoes/idp/nanoid"
+	"github.com/RagOfJoes/idp/internal"
+	"github.com/RagOfJoes/idp/internal/config"
+	"github.com/RagOfJoes/idp/internal/validate"
+	"github.com/RagOfJoes/idp/pkg/nanoid"
 	"github.com/RagOfJoes/idp/user/contact"
 	"github.com/RagOfJoes/idp/user/credential"
 	"github.com/RagOfJoes/idp/user/identity"
-	"github.com/RagOfJoes/idp/validate"
+	"golang.org/x/sync/errgroup"
 )
 
 var (
-	errInvalidFlowID = idp.NewServiceClientError(nil, "registration_flowid_invalid", "Invalid or expired flow id provided", nil)
+	errInvalidFlowID = internal.NewServiceClientError(nil, "registration_flowid_invalid", "Invalid or expired flow id provided", nil)
 	errNanoIDGen     = func() error {
 		_, file, line, _ := runtime.Caller(1)
-		return idp.NewServiceInternalError(file, line, "registration_nanoid_gen", "Failed to generate new nanoid token")
+		return internal.NewServiceInternalError(file, line, "registration_nanoid_gen", "Failed to generate new nanoid token")
 	}
 )
 
@@ -43,8 +45,10 @@ func (s *service) New(requestURL string) (*registration.Registration, error) {
 	if err != nil {
 		return nil, errNanoIDGen()
 	}
-	action := fmt.Sprintf("/registration/%s", fid)
-	expire := time.Now().Add(time.Minute * 10)
+
+	cfg := config.Get()
+	action := fmt.Sprintf("%s/%s/%s", cfg.Server.URL, cfg.Registration.URL, fid)
+	expire := time.Now().Add(cfg.Registration.Lifetime)
 	form := generateForm(action)
 	n, err := s.r.Create(registration.Registration{
 		FlowID:     fid,
@@ -53,7 +57,7 @@ func (s *service) New(requestURL string) (*registration.Registration, error) {
 		RequestURL: requestURL,
 	})
 	if err != nil {
-		return nil, idp.NewServiceClientError(err, "registration_init", "Failed to create new Registration", nil)
+		return nil, internal.NewServiceClientError(err, "registration_init", "Failed to create new Registration", nil)
 	}
 	return n, nil
 }
@@ -71,7 +75,7 @@ func (s *service) Find(flowID string) (*registration.Registration, error) {
 
 func (s *service) Submit(flowID string, payload registration.RegistrationPayload) (*identity.Identity, error) {
 	// 1. Make sure the flow is still valid
-	flow, err := s.Find(flowID)
+	_, err := s.Find(flowID)
 	if err != nil {
 		return nil, err
 	}
@@ -89,10 +93,10 @@ func (s *service) Submit(flowID string, payload registration.RegistrationPayload
 	if err != nil {
 		return nil, err
 	}
-	chanErr := make(chan error)
-	go func() {
-		defer close(chanErr)
-		// 4. Create a new verifiable contact with email provided
+	// 4. Create error group to execute concurrent service calls
+	var eg errgroup.Group
+	// 5. Create verifiable contacts and append to newUser for response
+	eg.Go(func() error {
 		vc, err := s.cos.Add([]contact.VerifiableContact{
 			{
 				IdentityID: newUser.ID,
@@ -101,9 +105,18 @@ func (s *service) Submit(flowID string, payload registration.RegistrationPayload
 			},
 		}...)
 		if err != nil {
-			return
+			return err
 		}
-		// 5. Create a new password credential
+
+		var vcf []contact.VerifiableContact
+		for _, c := range vc {
+			vcf = append(vcf, c)
+		}
+		newUser.VerifiableContacts = vcf
+		return nil
+	})
+	// 6. Create password credential and append to newUser
+	eg.Go(func() error {
 		cr, err := s.cs.CreatePassword(newUser.ID, payload.Password, []credential.Identifier{
 			{
 				Type:  "email",
@@ -115,28 +128,16 @@ func (s *service) Submit(flowID string, payload registration.RegistrationPayload
 			},
 		})
 		if err != nil {
-			chanErr <- err
-			return
+			return err
 		}
-		// 6. Append VerifiableContacts and Credentials to Identity
-		// This is to mimic the behavior for the all subsequent flows
-		var vcf []contact.VerifiableContact
-		for _, c := range vc {
-			vcf = append(vcf, *c)
-		}
-		newUser.VerifiableContacts = vcf
 		newUser.Credentials = append(newUser.Credentials, *cr)
-	}()
-	// 7. If an error has occurred while adding new verifiable
-	// contact or new password credential then delete identity
-	if err := <-chanErr; err != nil {
+		return nil
+	})
+	// 7. Check if error group executed with any errors. If so then delete
+	// new identity
+	if err := eg.Wait(); err != nil {
 		s.is.Delete(newUser.ID.String(), true)
 		return nil, err
-	}
-	// 8. If everything passes then delete flow
-	if err := s.r.Delete(flow.ID); err != nil {
-		_, file, line, _ := runtime.Caller(1)
-		return nil, idp.NewServiceInternalError(file, line, "registration_delete_fail", "Failed to delete registration flow")
 	}
 	return newUser, nil
 }

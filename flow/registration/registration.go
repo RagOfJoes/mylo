@@ -3,14 +3,14 @@ package registration
 import (
 	"time"
 
-	"github.com/RagOfJoes/idp"
+	"github.com/RagOfJoes/idp/internal"
 	"github.com/RagOfJoes/idp/ui/form"
 	"github.com/RagOfJoes/idp/user/identity"
 	"github.com/gofrs/uuid"
 )
 
 type Registration struct {
-	idp.Base
+	internal.Base
 	RequestURL string    `json:"-" gorm:"not null" validate:"required"`
 	FlowID     string    `json:"-" gorm:"not null;uniqueIndex" validate:"required"`
 	ExpiresAt  time.Time `json:"expires_at" gorm:"index;not null" validate:"required"`
