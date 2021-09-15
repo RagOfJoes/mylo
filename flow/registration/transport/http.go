@@ -129,6 +129,14 @@ func (h *Http) submitFlow() gin.HandlerFunc {
 			c.Error(err)
 			return
 		}
+		// Create a new verification flow
+		go func(user identity.Identity) {
+			_, err := h.vs.NewWelcome(user, user.VerifiableContacts[0], fmt.Sprintf("/registration/%s", fid))
+			if err != nil {
+				// TODO: Capture error
+				log.Print(err)
+			}
+		}(*user)
 
 		// Clone gin's raw Context to allow session manager to manipulate it
 		// Then update request with updated context
