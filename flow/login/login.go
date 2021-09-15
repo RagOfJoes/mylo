@@ -9,7 +9,7 @@ import (
 	"github.com/gofrs/uuid"
 )
 
-type Login struct {
+type Flow struct {
 	internal.Base
 	RequestURL string    `json:"-" gorm:"not null" validate:"required"`
 	FlowID     string    `json:"-" gorm:"not null;uniqueIndex" validate:"required"`
@@ -18,21 +18,26 @@ type Login struct {
 	Form form.Form `json:"form" gorm:"not null;type:json" validate:"required"`
 }
 
-type LoginPayload struct {
+type Payload struct {
 	Identifier string `json:"identifier" form:"identifier" binding:"required" validate:"required,min=1,max=128"`
 	Password   string `json:"password" form:"password" binding:"required" validate:"required,min=6,max=128"`
 }
 
 type Repository interface {
-	Create(Login) (*Login, error)
-	Get(string) (*Login, error)
-	GetByFlowID(string) (*Login, error)
-	Update(Login) (*Login, error)
+	Create(Flow) (*Flow, error)
+	Get(string) (*Flow, error)
+	GetByFlowID(string) (*Flow, error)
+	Update(Flow) (*Flow, error)
 	Delete(uuid.UUID) error
 }
 
 type Service interface {
-	New(requestURL string) (*Login, error)
-	Find(flowID string) (*Login, error)
-	Submit(flowID string, payload LoginPayload) (*identity.Identity, error)
+	New(requestURL string) (*Flow, error)
+	Find(flowID string) (*Flow, error)
+	Submit(flowID string, payload Payload) (*identity.Identity, error)
+}
+
+// TableName overrides GORM's table name
+func (Flow) TableName() string {
+	return "logins"
 }

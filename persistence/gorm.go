@@ -69,12 +69,12 @@ func NewGorm() (db *gorm.DB, err error) {
 func migrate(db *gorm.DB) error {
 	return db.AutoMigrate(
 		&identity.Identity{},
-		&contact.VerifiableContact{},
+		&contact.Contact{},
 		&credential.Identifier{},
 		&credential.Credential{},
 
-		&login.Login{},
-		&verification.Verification{},
-		&registration.Registration{},
+		&login.Flow{},
+		&verification.Flow{},
+		&registration.Flow{},
 	)
 }

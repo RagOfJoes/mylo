@@ -26,13 +26,13 @@ var (
 			"IdentityID": i,
 		})
 	}
-	errInvalidContact = func(i identity.Identity, c contact.VerifiableContact) error {
+	errInvalidContact = func(i identity.Identity, c contact.Contact) error {
 		return internal.NewServiceClientError(nil, "verification_invalid_contact", "Contact is either already verified or does not exist", &map[string]interface{}{
 			"Identity": i,
 			"Contact":  c,
 		})
 	}
-	errInvalidContactMatch = func(i uuid.UUID, c contact.VerifiableContact) error {
+	errInvalidContactMatch = func(i uuid.UUID, c contact.Contact) error {
 		return internal.NewServiceClientError(nil, "verification_invalid_contact", "Contact is either already verified or does not exist", &map[string]interface{}{
 			"IdentityID": i,
 			"Contact":    c,
@@ -44,7 +44,7 @@ var (
 			"IdentityID": i,
 		})
 	}
-	errInvalidPayload = func(f verification.Verification) error {
+	errInvalidPayload = func(f verification.Flow) error {
 		return internal.NewServiceClientError(nil, "verification_invalid_payload", "Invalid payload provided", &map[string]interface{}{
 			"Flow": f,
 		})
@@ -57,11 +57,11 @@ var (
 		_, file, line, _ := runtime.Caller(1)
 		return internal.NewServiceInternalError(file, line, "verification_email_send", "Failed to send email")
 	}
-	errUpdateFlow = func(src error, f verification.Verification, i identity.Identity) error {
+	errUpdateFlow = func(src error, f verification.Flow, i identity.Identity) error {
 		_, file, line, _ := runtime.Caller(1)
 		return internal.NewServiceInternalError(file, line, "verification_update_failed", "Failed to update flow")
 	}
-	errUpdateContact = func(src error, f verification.Verification, i identity.Identity) error {
+	errUpdateContact = func(src error, f verification.Flow, i identity.Identity) error {
 		_, file, line, _ := runtime.Caller(1)
 		return internal.NewServiceInternalError(file, line, "verification_update_failed", "Failed to update contact")
 	}
@@ -86,10 +86,10 @@ func NewVerificationService(e email.Client, r verification.Repository, cos conta
 }
 
 // TODO: Check if contact has an existing flow and reuse if it does
-func (s *service) New(identity identity.Identity, contact contact.VerifiableContact, requestURL string, status verification.VerificationStatus) (*verification.Verification, error) {
+func (s *service) New(identity identity.Identity, contact contact.Contact, requestURL string, status verification.Status) (*verification.Flow, error) {
 	// Make sure contact provided belongs to identity
 	flag := false
-	for _, c := range identity.VerifiableContacts {
+	for _, c := range identity.Contacts {
 		if c.ID.String() == contact.ID.String() {
 			flag = true
 			break
@@ -133,15 +133,15 @@ func (s *service) New(identity identity.Identity, contact contact.VerifiableCont
 		}
 	}
 	// Create flow and store in repository
-	created, err := s.r.Create(verification.Verification{
+	created, err := s.r.Create(verification.Flow{
 		FlowID:     fid,
 		Status:     status,
 		ExpiresAt:  expire,
 		RequestURL: requestURL,
 
-		Form:                newForm,
-		VerifiableContactID: contact.ID,
-		IdentityID:          identity.ID,
+		Form:       newForm,
+		ContactID:  contact.ID,
+		IdentityID: identity.ID,
 	})
 	if err != nil {
 		return nil, err
@@ -149,10 +149,10 @@ func (s *service) New(identity identity.Identity, contact contact.VerifiableCont
 	return created, nil
 }
 
-func (s *service) NewWelcome(identity identity.Identity, contact contact.VerifiableContact, requestURL string) (*verification.Verification, error) {
+func (s *service) NewWelcome(identity identity.Identity, contact contact.Contact, requestURL string) (*verification.Flow, error) {
 	// Make sure contact provided belongs to identity
 	flag := false
-	for _, c := range identity.VerifiableContacts {
+	for _, c := range identity.Contacts {
 		if c.ID == contact.ID {
 			flag = true
 		}
@@ -168,14 +168,14 @@ func (s *service) NewWelcome(identity identity.Identity, contact contact.Verifia
 	cfg := config.Get()
 	// New Flow
 	expire := time.Now().Add(cfg.Verification.Lifetime)
-	newFlow := verification.Verification{
+	newFlow := verification.Flow{
 		FlowID:     fid,
 		ExpiresAt:  expire,
 		RequestURL: requestURL,
 		Status:     verification.LinkPending,
 
-		VerifiableContactID: contact.ID,
-		IdentityID:          identity.ID,
+		ContactID:  contact.ID,
+		IdentityID: identity.ID,
 	}
 	// Send email
 	if err := s.sendEmail(fid, identity, contact.Value, true); err != nil {
@@ -189,7 +189,7 @@ func (s *service) NewWelcome(identity identity.Identity, contact contact.Verifia
 	return created, nil
 }
 
-func (s *service) Find(flowID string, identityID uuid.UUID) (*verification.Verification, error) {
+func (s *service) Find(flowID string, identityID uuid.UUID) (*verification.Flow, error) {
 	if flowID == "" {
 		return nil, errInvalidFlowID(nil, flowID, identityID)
 	}
@@ -203,7 +203,7 @@ func (s *service) Find(flowID string, identityID uuid.UUID) (*verification.Verif
 	return f, nil
 }
 
-func (s *service) Verify(flowID string, identity identity.Identity, payload interface{}) (*verification.Verification, error) {
+func (s *service) Verify(flowID string, identity identity.Identity, payload interface{}) (*verification.Flow, error) {
 	f, err := s.Find(flowID, identity.ID)
 	if err != nil {
 		return nil, err
@@ -226,7 +226,7 @@ func (s *service) Verify(flowID string, identity identity.Identity, payload inte
 
 // Internal methods
 //
-func (s *service) verifyLinkPending(identity identity.Identity, flow verification.Verification) (*verification.Verification, error) {
+func (s *service) verifyLinkPending(identity identity.Identity, flow verification.Flow) (*verification.Flow, error) {
 	// Compare IdentityID to make sure user attempting to verify is the proper user
 	if flow.IdentityID != identity.ID {
 		return nil, errInvalidUser(flow.FlowID, identity.ID)
@@ -235,7 +235,7 @@ func (s *service) verifyLinkPending(identity identity.Identity, flow verificatio
 	// - Update flow
 	// - Update contact
 	var eg errgroup.Group
-	var updated *verification.Verification
+	var updated *verification.Flow
 	eg.Go(func() error {
 		flow.Status = verification.Success
 		up, err := s.r.Update(flow)
@@ -246,9 +246,9 @@ func (s *service) verifyLinkPending(identity identity.Identity, flow verificatio
 		return nil
 	})
 	eg.Go(func() error {
-		vcs := identity.VerifiableContacts
+		vcs := identity.Contacts
 		for i, vc := range vcs {
-			if vc.ID == flow.VerifiableContactID {
+			if vc.ID == flow.ContactID {
 				now := time.Now()
 				vcs[i].Verified = true
 				vcs[i].UpdatedAt = &now
@@ -268,7 +268,7 @@ func (s *service) verifyLinkPending(identity identity.Identity, flow verificatio
 	return updated, nil
 }
 
-func (s *service) verifySessionWarning(identity identity.Identity, flow verification.Verification, payload verification.SessionWarnPayload) (*verification.Verification, error) {
+func (s *service) verifySessionWarning(identity identity.Identity, flow verification.Flow, payload verification.SessionWarnPayload) (*verification.Flow, error) {
 	// Check that payload has all the required information
 	if err := validate.Check(payload); err != nil {
 		return nil, err
@@ -279,7 +279,7 @@ func (s *service) verifySessionWarning(identity identity.Identity, flow verifica
 	}
 	// Compare passwords and find contact concurrently
 	var eg errgroup.Group
-	var foundContact contact.VerifiableContact
+	var foundContact contact.Contact
 	eg.Go(func() error {
 		// Compare passwords
 		if err := s.cs.ComparePassword(flow.IdentityID, payload.Password); err != nil {
@@ -288,7 +288,7 @@ func (s *service) verifySessionWarning(identity identity.Identity, flow verifica
 		return nil
 	})
 	eg.Go(func() error {
-		f, err := s.cos.Find(flow.VerifiableContactID.String())
+		f, err := s.cos.Find(flow.ContactID.String())
 		if err != nil {
 			return err
 		}

@@ -14,7 +14,7 @@ func AuthMiddleware(sm *Manager, is identity.Service) gin.HandlerFunc {
 			u, err := is.Find(sess.IdentityID.String())
 			if u != nil && err == nil {
 				sess.Identity = u
-				sess.VerifiableContacts = u.VerifiableContacts
+				sess.Contacts = u.Contacts
 				c.Set("sess", sess)
 			}
 		}

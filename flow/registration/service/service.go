@@ -40,7 +40,7 @@ func NewRegistrationService(r registration.Repository, cos contact.Service, cs c
 	}
 }
 
-func (s *service) New(requestURL string) (*registration.Registration, error) {
+func (s *service) New(requestURL string) (*registration.Flow, error) {
 	fid, err := nanoid.New()
 	if err != nil {
 		return nil, errNanoIDGen()
@@ -50,7 +50,7 @@ func (s *service) New(requestURL string) (*registration.Registration, error) {
 	action := fmt.Sprintf("%s/%s/%s", cfg.Server.URL, cfg.Registration.URL, fid)
 	expire := time.Now().Add(cfg.Registration.Lifetime)
 	form := generateForm(action)
-	n, err := s.r.Create(registration.Registration{
+	n, err := s.r.Create(registration.Flow{
 		FlowID:     fid,
 		Form:       form,
 		ExpiresAt:  expire,
@@ -62,7 +62,7 @@ func (s *service) New(requestURL string) (*registration.Registration, error) {
 	return n, nil
 }
 
-func (s *service) Find(flowID string) (*registration.Registration, error) {
+func (s *service) Find(flowID string) (*registration.Flow, error) {
 	if flowID == "" {
 		return nil, errInvalidFlowID
 	}
@@ -73,7 +73,7 @@ func (s *service) Find(flowID string) (*registration.Registration, error) {
 	return f, nil
 }
 
-func (s *service) Submit(flowID string, payload registration.RegistrationPayload) (*identity.Identity, error) {
+func (s *service) Submit(flowID string, payload registration.Payload) (*identity.Identity, error) {
 	// 1. Make sure the flow is still valid
 	_, err := s.Find(flowID)
 	if err != nil {
@@ -95,9 +95,9 @@ func (s *service) Submit(flowID string, payload registration.RegistrationPayload
 	}
 	// 4. Create error group to execute concurrent service calls
 	var eg errgroup.Group
-	// 5. Create verifiable contacts and append to newUser for response
+	// 5. Create contacts and append to newUser for response
 	eg.Go(func() error {
-		vc, err := s.cos.Add([]contact.VerifiableContact{
+		vc, err := s.cos.Add([]contact.Contact{
 			{
 				IdentityID: newUser.ID,
 				State:      contact.Sent,
@@ -108,11 +108,11 @@ func (s *service) Submit(flowID string, payload registration.RegistrationPayload
 			return err
 		}
 
-		var vcf []contact.VerifiableContact
+		var vcf []contact.Contact
 		for _, c := range vc {
 			vcf = append(vcf, c)
 		}
-		newUser.VerifiableContacts = vcf
+		newUser.Contacts = vcf
 		return nil
 	})
 	// 6. Create password credential and append to newUser

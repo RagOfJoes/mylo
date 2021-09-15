@@ -10,27 +10,27 @@ import (
 	"github.com/gofrs/uuid"
 )
 
-type VerificationStatus string
+type Status string
 
 const (
 	// SessionWarn occurs when the user's session has passed its half-life. This requires the
 	// user to perform a soft login by requiring them to input their password
-	SessionWarn VerificationStatus = "SessionWarn"
+	SessionWarn Status = "SessionWarn"
 	// LinkPending occurs when the link has been sent via email/sms and is waiting to be
 	// activated
-	LinkPending VerificationStatus = "LinkPending"
+	LinkPending Status = "LinkPending"
 	// Success occurs when verification has completed successfully
-	Success VerificationStatus = "Success"
+	Success Status = "Success"
 )
 
-type Verification struct {
+type Flow struct {
 	internal.Base
 	// RequestURL defines the url that initiated flow. This can be used to pass any
 	// relevant data from urls path or query. This can also be used to find locate
 	// or security issues.
 	RequestURL string `json:"-" gorm:"not null" validate:"required"`
 	// Status defines the current state of the flow
-	Status VerificationStatus `json:"status" gorm:"not null" validate:"required"`
+	Status Status `json:"status" gorm:"not null" validate:"required"`
 	// FlowID defines the unique identifier that will a user will use to
 	FlowID string `json:"-" gorm:"not null;uniqueIndex" validate:"required"`
 	// ExpiresAt defines the time when this flow will no longer be valid
@@ -39,10 +39,10 @@ type Verification struct {
 	// Form defines additional information required to continue with flow
 	Form *form.Form `json:"form,omitempty" gorm:"type:json;default:null"`
 
-	// VerifiableContactID defines the contact that this flow belongs to
-	VerifiableContactID uuid.UUID `json:"-" gorm:"index;not null" validate:"required,uuid4"`
+	// ContactID defines the contact that this flow belongs to
+	ContactID uuid.UUID `gorm:"index;not null" validate:"required,uuid4"`
 	// IdentityID defines the user that this flow belongs to
-	IdentityID uuid.UUID `json:"-" gorm:"index;not null" validate:"required,uuid4"`
+	IdentityID uuid.UUID `gorm:"index;not null" validate:"required,uuid4"`
 }
 
 // NewPayload defines the data required to initiate the flow
@@ -61,15 +61,15 @@ type SessionWarnPayload struct {
 // Repository defines
 type Repository interface {
 	// Create creates a new Verification
-	Create(newFlow Verification) (*Verification, error)
+	Create(newFlow Flow) (*Flow, error)
 	// Get retrieves a flow via ID
-	Get(id uuid.UUID) (*Verification, error)
+	Get(id uuid.UUID) (*Flow, error)
 	// GetByFlowID retrieves a flow via FlowID
-	GetByFlowID(flowID string) (*Verification, error)
+	GetByFlowID(flowID string) (*Flow, error)
 	// GetByContact retrieves a flow via ContactID
-	GetByContact(contactID uuid.UUID) (*Verification, error)
+	GetByContact(contactID uuid.UUID) (*Flow, error)
 	// Update updates a flow
-	Update(updateFlow Verification) (*Verification, error)
+	Update(updateFlow Flow) (*Flow, error)
 	// Delete deletes a flow via ID
 	Delete(id uuid.UUID) error
 }
@@ -77,10 +77,15 @@ type Repository interface {
 // Service defines
 type Service interface {
 	// New creates a new verification flow
-	New(identity identity.Identity, contact contact.VerifiableContact, requestURL string, status VerificationStatus) (*Verification, error)
+	New(identity identity.Identity, contact contact.Contact, requestURL string, status Status) (*Flow, error)
 	// NewWelcome creates a new verification flow for a new user
-	NewWelcome(identity identity.Identity, contact contact.VerifiableContact, requestURL string) (*Verification, error)
-	Find(flowID string, identityID uuid.UUID) (*Verification, error)
+	NewWelcome(identity identity.Identity, contact contact.Contact, requestURL string) (*Flow, error)
+	Find(flowID string, identityID uuid.UUID) (*Flow, error)
 	// Verify either completes the flow or moves to next status
-	Verify(flowID string, identity identity.Identity, payload interface{}) (*Verification, error)
+	Verify(flowID string, identity identity.Identity, payload interface{}) (*Flow, error)
+}
+
+// TableName overrides GORM's table name
+func (Flow) TableName() string {
+	return "verifications"
 }

@@ -75,8 +75,8 @@ func (h *Http) initFlow() gin.HandlerFunc {
 			return
 		}
 		// Check if payload provided is actually a user's contact id
-		var foundContact contact.VerifiableContact
-		for _, c := range sess.VerifiableContacts {
+		var foundContact contact.Contact
+		for _, c := range sess.Contacts {
 			if c.ID.String() == dest.Contact {
 				foundContact = c
 			}

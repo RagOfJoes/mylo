@@ -29,13 +29,13 @@ type Session struct {
 	//
 	// TODO: Determine whether this is necessary or not
 	Identity *identity.Identity `json:"identity,omitempty"`
-	// VerifiableContacts are contact methods be it
+	// Contacts are contact methods be it
 	// email, sms, etc.
-	VerifiableContacts []contact.VerifiableContact `json:"verifiable_contacts,omitempty"`
+	Contacts []contact.Contact `json:"contacts,omitempty"`
 }
 
 // New creates a new session
-func New(exp time.Time, i identity.Identity, c []credential.CredentialType, v []contact.VerifiableContact) (*Session, error) {
+func New(exp time.Time, i identity.Identity, c []credential.CredentialType, v []contact.Contact) (*Session, error) {
 	uid, err := uuid.NewV4()
 	if err != nil {
 		return nil, err
@@ -51,8 +51,8 @@ func New(exp time.Time, i identity.Identity, c []credential.CredentialType, v []
 		IdentityID:  i.ID,
 		Credentials: c,
 
-		Identity:           &i,
-		VerifiableContacts: v,
+		Identity: &i,
+		Contacts: v,
 	}
 	return &newSession, nil
 }

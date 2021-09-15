@@ -39,7 +39,7 @@ func NewLoginService(r login.Repository, cos contact.Service, cs credential.Serv
 	}
 }
 
-func (s *service) New(requestURL string) (*login.Login, error) {
+func (s *service) New(requestURL string) (*login.Flow, error) {
 	fid, err := nanoid.New()
 	if err != nil {
 		return nil, errNanoIDGen()
@@ -49,7 +49,7 @@ func (s *service) New(requestURL string) (*login.Login, error) {
 	action := fmt.Sprintf("%s/%s/%s", cfg.Server.URL, cfg.Login.URL, fid)
 	expire := time.Now().Add(cfg.Login.Lifetime)
 	form := generateForm(action)
-	n, err := s.r.Create(login.Login{
+	n, err := s.r.Create(login.Flow{
 		FlowID:     fid,
 		Form:       form,
 		ExpiresAt:  expire,
@@ -61,7 +61,7 @@ func (s *service) New(requestURL string) (*login.Login, error) {
 	return n, nil
 }
 
-func (s *service) Find(flowID string) (*login.Login, error) {
+func (s *service) Find(flowID string) (*login.Flow, error) {
 	if flowID == "" {
 		return nil, errInvalidFlowID
 	}
@@ -72,7 +72,7 @@ func (s *service) Find(flowID string) (*login.Login, error) {
 	return f, nil
 }
 
-func (s *service) Submit(flowID string, payload login.LoginPayload) (*identity.Identity, error) {
+func (s *service) Submit(flowID string, payload login.Payload) (*identity.Identity, error) {
 	// 1. Ensure that the flow is still valid
 	flow, err := s.Find(flowID)
 	if err != nil {

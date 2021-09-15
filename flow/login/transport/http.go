@@ -115,7 +115,7 @@ func (h *Http) submitFlow() gin.HandlerFunc {
 		}
 		// Validate that all the required
 		// inputs are present
-		var dest login.LoginPayload
+		var dest login.Payload
 		if err := c.ShouldBind(&dest); err != nil {
 			c.Error(errInvalidPayload)
 			return

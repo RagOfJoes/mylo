@@ -11,7 +11,7 @@ import (
 
 var (
 	errAddInvalidContacts = func(err error) error {
-		return internal.NewServiceClientError(err, "verifiable_contact_add", "Invalid contact values provided", nil)
+		return internal.NewServiceClientError(err, "contact_add", "Invalid contact values provided", nil)
 	}
 )
 
@@ -25,7 +25,7 @@ func NewContactService(cr contact.Repository) contact.Service {
 	}
 }
 
-func (s *service) Add(args ...contact.VerifiableContact) ([]contact.VerifiableContact, error) {
+func (s *service) Add(args ...contact.Contact) ([]contact.Contact, error) {
 	if len(args) == 0 {
 		return nil, errAddInvalidContacts(nil)
 	}
@@ -33,7 +33,7 @@ func (s *service) Add(args ...contact.VerifiableContact) ([]contact.VerifiableCo
 	identityID := args[0].IdentityID
 	if err := s.cr.DeleteAllUser(identityID); err != nil {
 		_, file, line, _ := runtime.Caller(1)
-		return nil, internal.NewServiceInternalError(file, line, "verifiable_contact_add", fmt.Sprintf("Failed to delete %s contacts", identityID))
+		return nil, internal.NewServiceInternalError(file, line, "contact_add", fmt.Sprintf("Failed to delete %s contacts", identityID))
 	}
 
 	n, err := s.cr.Create(args...)
@@ -43,12 +43,12 @@ func (s *service) Add(args ...contact.VerifiableContact) ([]contact.VerifiableCo
 	return n, nil
 }
 
-func (s *service) Find(i string) (*contact.VerifiableContact, error) {
+func (s *service) Find(i string) (*contact.Contact, error) {
 	uid, err := uuid.FromString(i)
 	if err == nil {
 		f, err := s.cr.Get(uid)
 		if err != nil {
-			return nil, internal.NewServiceClientError(err, "verifiable_contact_find", "Invalid ID provided", &map[string]interface{}{
+			return nil, internal.NewServiceClientError(err, "contact_find", "Invalid ID provided", &map[string]interface{}{
 				"ContactID": uid,
 			})
 		}
@@ -56,8 +56,8 @@ func (s *service) Find(i string) (*contact.VerifiableContact, error) {
 	}
 	f, err := s.cr.GetByValue(i)
 	if err != nil {
-		return nil, internal.NewServiceClientError(err, "verifiable_contact_find", "Invalid contact value provided", &map[string]interface{}{
-			"Contact": contact.VerifiableContact{Value: i},
+		return nil, internal.NewServiceClientError(err, "contact_find", "Invalid contact value provided", &map[string]interface{}{
+			"Contact": contact.Contact{Value: i},
 		})
 	}
 	return f, nil

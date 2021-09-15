@@ -118,7 +118,7 @@ func (h *Http) submitFlow() gin.HandlerFunc {
 		fid := c.Param("flow_id")
 		// Validate that all the required
 		// inputs are present
-		var dest registration.RegistrationPayload
+		var dest registration.Payload
 		if err := c.ShouldBind(&dest); err != nil {
 			c.Error(errInvalidPayload)
 			return
@@ -131,7 +131,7 @@ func (h *Http) submitFlow() gin.HandlerFunc {
 		}
 		// Create a new verification flow
 		go func(user identity.Identity) {
-			_, err := h.vs.NewWelcome(user, user.VerifiableContacts[0], fmt.Sprintf("/registration/%s", fid))
+			_, err := h.vs.NewWelcome(user, user.Contacts[0], fmt.Sprintf("/registration/%s", fid))
 			if err != nil {
 				// TODO: Capture error
 				log.Print(err)

@@ -46,8 +46,8 @@ func NewManager() (*Manager, error) {
 func (m *Manager) Insert(ctx context.Context, user *identity.Identity, credentialTypes []credential.CredentialType) (*Session, error) {
 	// Separate contacts from the identity
 	// to ease readability
-	vc := user.VerifiableContacts
-	user.VerifiableContacts = nil
+	vc := user.Contacts
+	user.Contacts = nil
 
 	newSession, err := New(time.Now().Add(m.Lifetime), *user, credentialTypes, vc)
 	if err != nil || newSession == nil {
@@ -56,7 +56,7 @@ func (m *Manager) Insert(ctx context.Context, user *identity.Identity, credentia
 	// Trim session that will be inserted into session store
 	ins := *newSession
 	ins.Identity = nil
-	ins.VerifiableContacts = []contact.VerifiableContact{}
+	ins.Contacts = []contact.Contact{}
 	m.Put(ctx, "sess", ins)
 	return newSession, nil
 }

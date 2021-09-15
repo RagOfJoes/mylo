@@ -14,7 +14,7 @@ func NewGormContactRepository(d *gorm.DB) contact.Repository {
 	return &gormContactRepository{DB: d}
 }
 
-func (g *gormContactRepository) Create(v ...contact.VerifiableContact) ([]contact.VerifiableContact, error) {
+func (g *gormContactRepository) Create(v ...contact.Contact) ([]contact.Contact, error) {
 	n := v
 	if err := g.DB.CreateInBatches(n, len(n)).Error; err != nil {
 		return nil, err
@@ -22,7 +22,7 @@ func (g *gormContactRepository) Create(v ...contact.VerifiableContact) ([]contac
 	return n, nil
 }
 
-func (g *gormContactRepository) Update(v contact.VerifiableContact) (*contact.VerifiableContact, error) {
+func (g *gormContactRepository) Update(v contact.Contact) (*contact.Contact, error) {
 	u := v
 	if err := g.DB.Save(&u).Error; err != nil {
 		return nil, err
@@ -30,16 +30,16 @@ func (g *gormContactRepository) Update(v contact.VerifiableContact) (*contact.Ve
 	return &u, nil
 }
 
-func (g *gormContactRepository) Get(i uuid.UUID) (*contact.VerifiableContact, error) {
-	var v contact.VerifiableContact
+func (g *gormContactRepository) Get(i uuid.UUID) (*contact.Contact, error) {
+	var v contact.Contact
 	if err := g.DB.Where("id = ?", i).First(&v).Error; err != nil {
 		return nil, err
 	}
 	return &v, nil
 }
 
-func (g *gormContactRepository) GetByValue(s string) (*contact.VerifiableContact, error) {
-	var v contact.VerifiableContact
+func (g *gormContactRepository) GetByValue(s string) (*contact.Contact, error) {
+	var v contact.Contact
 	if err := g.DB.First(&v, "value = ?", s).Error; err != nil {
 		return nil, err
 	}
@@ -47,14 +47,14 @@ func (g *gormContactRepository) GetByValue(s string) (*contact.VerifiableContact
 }
 
 func (g *gormContactRepository) Delete(i uuid.UUID) error {
-	if err := g.DB.Where("id = ?", i).Delete(contact.VerifiableContact{}).Error; err != nil && err != gorm.ErrRecordNotFound {
+	if err := g.DB.Where("id = ?", i).Delete(contact.Contact{}).Error; err != nil && err != gorm.ErrRecordNotFound {
 		return err
 	}
 	return nil
 }
 
 func (g *gormContactRepository) DeleteAllUser(i uuid.UUID) error {
-	if err := g.DB.Where("identity_id = ?", i).Delete(contact.VerifiableContact{}).Error; err != nil && err != gorm.ErrRecordNotFound {
+	if err := g.DB.Where("identity_id = ?", i).Delete(contact.Contact{}).Error; err != nil && err != gorm.ErrRecordNotFound {
 		return err
 	}
 	return nil

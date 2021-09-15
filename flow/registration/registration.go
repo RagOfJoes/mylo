@@ -9,7 +9,7 @@ import (
 	"github.com/gofrs/uuid"
 )
 
-type Registration struct {
+type Flow struct {
 	internal.Base
 	RequestURL string    `json:"-" gorm:"not null" validate:"required"`
 	FlowID     string    `json:"-" gorm:"not null;uniqueIndex" validate:"required"`
@@ -18,7 +18,7 @@ type Registration struct {
 	Form form.Form `json:"form" gorm:"not null;type:json" validate:"required"`
 }
 
-type RegistrationPayload struct {
+type Payload struct {
 	Email     string `json:"email" form:"email" binding:"required" validate:"required,min=1,email"`
 	Username  string `json:"username" form:"username" binding:"required" validate:"required,min=4,max=20,alphanum"`
 	FirstName string `json:"first_name" form:"first_name" validate:"max=64,alphanumunicode"`
@@ -27,15 +27,20 @@ type RegistrationPayload struct {
 }
 
 type Repository interface {
-	Create(Registration) (*Registration, error)
-	Get(string) (*Registration, error)
-	GetByFlowID(string) (*Registration, error)
-	Update(Registration) (*Registration, error)
+	Create(Flow) (*Flow, error)
+	Get(string) (*Flow, error)
+	GetByFlowID(string) (*Flow, error)
+	Update(Flow) (*Flow, error)
 	Delete(uuid.UUID) error
 }
 
 type Service interface {
-	New(requestURL string) (*Registration, error)
-	Find(flowID string) (*Registration, error)
-	Submit(flowID string, payload RegistrationPayload) (*identity.Identity, error)
+	New(requestURL string) (*Flow, error)
+	Find(flowID string) (*Flow, error)
+	Submit(flowID string, payload Payload) (*identity.Identity, error)
+}
+
+// TableName overrides GORM's table name
+func (Flow) TableName() string {
+	return "registrations"
 }

@@ -28,7 +28,7 @@ func (g *gormUserRepository) Create(u identity.Identity) (*identity.Identity, er
 func (g *gormUserRepository) Get(u uuid.UUID, c bool) (*identity.Identity, error) {
 	str := u.String()
 	var f identity.Identity
-	if err := g.DB.Preload("Credentials").Preload("VerifiableContacts").Find(&f, "id = ?", str).Error; err != nil {
+	if err := g.DB.Preload("Credentials").Preload("Contacts").Find(&f, "id = ?", str).Error; err != nil {
 		return nil, err
 	}
 	if !c {
@@ -50,7 +50,7 @@ func (g *gormUserRepository) GetIdentifier(s string, c bool) (*identity.Identity
 
 	// Use the credential found to search for the actual identity
 	var ident identity.Identity
-	if err := g.DB.Preload("Credentials").Preload("VerifiableContacts").First(&ident, "id = ?", cred.IdentityID).Error; err != nil {
+	if err := g.DB.Preload("Credentials").Preload("Contacts").First(&ident, "id = ?", cred.IdentityID).Error; err != nil {
 		return nil, err
 	}
 	if !c {
