@@ -5,8 +5,8 @@ import (
 	"encoding/json"
 	"fmt"
 
+	"github.com/RagOfJoes/idp/internal/validate"
 	"github.com/RagOfJoes/idp/ui/node"
-	"github.com/RagOfJoes/idp/validate"
 )
 
 const (
@@ -16,7 +16,7 @@ const (
 )
 
 type Form struct {
-	Action string     `json:"action" validate:"required,url"`
+	Action string     `json:"action" validate:"required"`
 	Method Method     `json:"method" validate:"required,oneof='GET' 'POST' 'PUT'"`
 	Nodes  node.Nodes `json:"nodes" validate:"required"`
 }
@@ -28,6 +28,9 @@ type Method string
 
 // Value returns stringified version of JSON
 func (f *Form) Value() (driver.Value, error) {
+	if f == nil {
+		return nil, nil
+	}
 	if err := validate.Check(f); err != nil {
 		return nil, err
 	}
