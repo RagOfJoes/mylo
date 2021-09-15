@@ -6,8 +6,8 @@ import (
 	"runtime"
 	"time"
 
-	"github.com/RagOfJoes/idp/common"
 	"github.com/RagOfJoes/idp/flow/login"
+	"github.com/RagOfJoes/idp/internal/config"
 	"github.com/RagOfJoes/idp/session"
 	"github.com/RagOfJoes/idp/transport"
 	"github.com/RagOfJoes/idp/user/credential"
@@ -30,17 +30,27 @@ type Http struct {
 }
 
 func NewLoginHttp(s login.Service, sm *session.Manager, r *gin.Engine) {
+	cfg := config.Get()
 	h := &Http{
 		s:  s,
 		sm: sm,
 	}
-	r.GET("/login", h.initFlow())
-	r.GET("/login/:flow_id", h.getFlow())
-	r.POST("/login/:flow_id", h.submitFlow())
+
+	group := r.Group(fmt.Sprintf("/%s", cfg.Login.URL))
+	{
+		group.GET("/", h.initFlow())
+		group.GET("/:flow_id", h.getFlow())
+		group.POST("/:flow_id", h.submitFlow())
+	}
 }
 
 func (h *Http) initFlow() gin.HandlerFunc {
 	return func(c *gin.Context) {
+		if transport.IsAuthenticated(c) != nil {
+			c.Error(errAlreadyAuthenticated)
+			return
+		}
+
 		reqURL := c.Request.URL.Path
 		reqQuery := c.Request.URL.Query().Encode()
 		fullURL := reqURL
@@ -91,7 +101,7 @@ func (h *Http) getFlow() gin.HandlerFunc {
 
 func (h *Http) submitFlow() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		if common.IsAuthenticated(c) {
+		if transport.IsAuthenticated(c) != nil {
 			c.Error(errAlreadyAuthenticated)
 			return
 		}
@@ -118,16 +128,16 @@ func (h *Http) submitFlow() gin.HandlerFunc {
 		}
 
 		// Clone gin's raw Context to allow session manager to manipulate it
-		// Update request with updated context
+		// Then update request with updated context
 		cpy := c.Request.Context()
-		if err := h.sm.PutAuth(cpy, *user, []credential.CredentialType{credential.Password}); err != nil {
+		sess, err := h.sm.Insert(cpy, user, []credential.CredentialType{credential.Password})
+		if err != nil {
 			_, file, line, _ := runtime.Caller(1)
-			c.Error(transport.NewHttpInternalError(file, line, "session_auth_put", "Failed to create a new Auth Session"))
+			c.Error(transport.NewHttpInternalError(file, line, "session_insert", "Failed to create a new Auth Session"))
 			return
 		}
 		c.Request = c.Request.WithContext(cpy)
 
-		sess := h.sm.GetAuth(c.Request.Context(), true)
 		c.JSON(http.StatusOK, transport.HttpResponse{
 			Success: true,
 			Payload: sess,

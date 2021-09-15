@@ -3,14 +3,14 @@ package login
 import (
 	"time"
 
-	"github.com/RagOfJoes/idp"
+	"github.com/RagOfJoes/idp/internal"
 	"github.com/RagOfJoes/idp/ui/form"
 	"github.com/RagOfJoes/idp/user/identity"
 	"github.com/gofrs/uuid"
 )
 
 type Login struct {
-	idp.Base
+	internal.Base
 	RequestURL string    `json:"-" gorm:"not null" validate:"required"`
 	FlowID     string    `json:"-" gorm:"not null;uniqueIndex" validate:"required"`
 	ExpiresAt  time.Time `json:"expires_at" gorm:"index;not null" validate:"required"`
@@ -19,7 +19,7 @@ type Login struct {
 }
 
 type LoginPayload struct {
-	Identifier string `json:"identifier" form:"identifier" binding:"required" validate:"required,min=1,max=20"`
+	Identifier string `json:"identifier" form:"identifier" binding:"required" validate:"required,min=1,max=128"`
 	Password   string `json:"password" form:"password" binding:"required" validate:"required,min=6,max=128"`
 }
 
