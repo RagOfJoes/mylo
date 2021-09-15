@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/RagOfJoes/idp/internal/config"
 	"golang.org/x/crypto/argon2"
 )
 
@@ -16,30 +17,10 @@ var (
 	ErrIncompatibleVersion = errors.New("incompatible version of argon2")
 )
 
-// Example:
-// argonParams{
-// memory:  64 * 1024,
-// iterations:  3,
-// parallelism: 2,
-// saltLength:  16,
-// keyLength:   32,
-// }
-type argonParams struct {
-	memory      uint32
-	iterations  uint32
-	parallelism uint8
-	saltLength  uint32
-	keyLength   uint32
-}
-
-// NewArgonParams creates a new set of argon2 parameters
-func NewArgonParams(memory uint32, iterations uint32, parallelism uint8, saltLength uint32, keyLength uint32) argonParams {
-	return argonParams{memory: memory, iterations: iterations, parallelism: parallelism, saltLength: saltLength, keyLength: keyLength}
-}
-
-func generateFromPassword(password string, p *argonParams) (encodedHash string, err error) {
+func generateFromPassword(password string) (encodedHash string, err error) {
+	p := config.Get().Credential.Argon
 	// Generate a cryptographically secure random salt.
-	salt, err := generateRandomBytes(p.saltLength)
+	salt, err := generateRandomBytes(p.SaltLength)
 	if err != nil {
 		return "", err
 	}
@@ -47,14 +28,14 @@ func generateFromPassword(password string, p *argonParams) (encodedHash string, 
 	// Pass the plaintext password, salt and parameters to the argon2.IDKey
 	// function. This will generate a hash of the password using the Argon2id
 	// variant.
-	hash := argon2.IDKey([]byte(password), salt, p.iterations, p.memory, p.parallelism, p.keyLength)
+	hash := argon2.IDKey([]byte(password), salt, p.Iterations, p.Memory, p.Parallelism, p.KeyLength)
 
 	// Base64 encode the salt and hashed password.
 	b64Salt := base64.RawStdEncoding.EncodeToString(salt)
 	b64Hash := base64.RawStdEncoding.EncodeToString(hash)
 
 	// Return a string using the standard encoded hash representation.
-	encodedHash = fmt.Sprintf("$argon2id$v=%d$m=%d,t=%d,p=%d$%s$%s", argon2.Version, p.memory, p.iterations, p.parallelism, b64Salt, b64Hash)
+	encodedHash = fmt.Sprintf("$argon2id$v=%d$m=%d,t=%d,p=%d$%s$%s", argon2.Version, p.Memory, p.Iterations, p.Parallelism, b64Salt, b64Hash)
 
 	return encodedHash, nil
 }
@@ -69,7 +50,7 @@ func generateRandomBytes(n uint32) ([]byte, error) {
 	return b, nil
 }
 
-func comparePasswordAndHash(password, encodedHash string) (match bool, err error) {
+func comparePasswordAndHash(password string, encodedHash string) (match bool, err error) {
 	// Extract the parameters, salt and derived key from the encoded password
 	// hash.
 	p, salt, hash, err := decodeHash(encodedHash)
@@ -78,7 +59,7 @@ func comparePasswordAndHash(password, encodedHash string) (match bool, err error
 	}
 
 	// Derive the key from the other password using the same parameters.
-	otherHash := argon2.IDKey([]byte(password), salt, p.iterations, p.memory, p.parallelism, p.keyLength)
+	otherHash := argon2.IDKey([]byte(password), salt, p.Iterations, p.Memory, p.Parallelism, p.KeyLength)
 
 	// Check that the contents of the hashed passwords are identical. Note
 	// that we are using the subtle.ConstantTimeCompare() function for this
@@ -89,7 +70,7 @@ func comparePasswordAndHash(password, encodedHash string) (match bool, err error
 	return false, nil
 }
 
-func decodeHash(encodedHash string) (p *argonParams, salt, hash []byte, err error) {
+func decodeHash(encodedHash string) (p *config.Argon, salt, hash []byte, err error) {
 	vals := strings.Split(encodedHash, "$")
 	if len(vals) != 6 {
 		return nil, nil, nil, ErrInvalidHash
@@ -104,8 +85,8 @@ func decodeHash(encodedHash string) (p *argonParams, salt, hash []byte, err erro
 		return nil, nil, nil, ErrIncompatibleVersion
 	}
 
-	p = &argonParams{}
-	_, err = fmt.Sscanf(vals[3], "m=%d,t=%d,p=%d", &p.memory, &p.iterations, &p.parallelism)
+	p = &config.Argon{}
+	_, err = fmt.Sscanf(vals[3], "m=%d,t=%d,p=%d", &p.Memory, &p.Iterations, &p.Parallelism)
 	if err != nil {
 		return nil, nil, nil, err
 	}
@@ -114,13 +95,13 @@ func decodeHash(encodedHash string) (p *argonParams, salt, hash []byte, err erro
 	if err != nil {
 		return nil, nil, nil, err
 	}
-	p.saltLength = uint32(len(salt))
+	p.SaltLength = uint32(len(salt))
 
 	hash, err = base64.RawStdEncoding.Strict().DecodeString(vals[5])
 	if err != nil {
 		return nil, nil, nil, err
 	}
-	p.keyLength = uint32(len(hash))
+	p.KeyLength = uint32(len(hash))
 
 	return p, salt, hash, nil
 }

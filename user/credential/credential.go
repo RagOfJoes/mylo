@@ -6,12 +6,6 @@ import (
 	"github.com/gofrs/uuid"
 )
 
-const (
-	// CredentialTypes
-	OIDC     CredentialType = "oidc"
-	Password CredentialType = "password"
-)
-
 // Credential can be a Password, OTP, Device Code,
 // Magic Link, etc.
 //
@@ -38,8 +32,16 @@ type Credential struct {
 // CredentialType defines a Credential Type
 type CredentialType string
 
+const (
+	// CredentialTypes
+	OIDC     CredentialType = "oidc"
+	Password CredentialType = "password"
+)
+
 // CredentialPassword defines the structure for
 // a type password's Values field
+// TODO: Look into adding more fields here like
+// password score, encoding format??, etc.
 type CredentialPassword struct {
 	HashedPassword string `json:"hashed_password"`
 }
