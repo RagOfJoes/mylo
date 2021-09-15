@@ -12,8 +12,8 @@ type HttpClientError struct {
 	// Message that will be sent back to the client
 	Description string `json:"message"`
 	// Object that can provide further insight
-	// to the client
-	Details *map[string]interface{} `json:"details,omitempty"`
+	// to the error. Only accessible internally
+	Details *map[string]interface{} `json:"-"`
 }
 
 type HttpInternalError struct {
