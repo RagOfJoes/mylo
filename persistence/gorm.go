@@ -6,6 +6,7 @@ import (
 
 	"github.com/RagOfJoes/idp/flow/login"
 	"github.com/RagOfJoes/idp/flow/registration"
+	"github.com/RagOfJoes/idp/flow/verification"
 	"github.com/RagOfJoes/idp/internal/config"
 	"github.com/RagOfJoes/idp/user/contact"
 	"github.com/RagOfJoes/idp/user/credential"
@@ -73,6 +74,7 @@ func migrate(db *gorm.DB) error {
 		&credential.Credential{},
 
 		&login.Login{},
+		&verification.Verification{},
 		&registration.Registration{},
 	)
 }
