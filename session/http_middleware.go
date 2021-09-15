@@ -1,15 +1,23 @@
 package session
 
 import (
+	"github.com/RagOfJoes/idp/user/identity"
 	"github.com/gin-gonic/gin"
 )
 
 // AuthMiddleware retrieves identity from session
 // and passes it to context
-func AuthMiddleware(sm *Manager) gin.HandlerFunc {
+func AuthMiddleware(sm *Manager, is identity.Service) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		sess := sm.GetAuth(c.Request.Context(), true)
-		c.Set("auth_session", sess)
+		sess := sm.Retrieve(c.Request.Context(), true)
+		if sess != nil {
+			u, err := is.Find(sess.IdentityID.String())
+			if u != nil && err == nil {
+				sess.Identity = u
+				sess.VerifiableContacts = u.VerifiableContacts
+				c.Set("sess", sess)
+			}
+		}
 
 		c.Next()
 	}

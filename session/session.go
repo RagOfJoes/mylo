@@ -1,114 +1,58 @@
 package session
 
 import (
-	"context"
-	"encoding/gob"
-	"net/http"
-	"sync"
 	"time"
 
 	"github.com/RagOfJoes/idp/user/contact"
 	"github.com/RagOfJoes/idp/user/credential"
 	"github.com/RagOfJoes/idp/user/identity"
-	"github.com/alexedwards/scs/v2"
 	"github.com/gofrs/uuid"
 )
 
-var (
-	registerSessionOnce sync.Once
-)
-
-type Manager struct {
-	*scs.SessionManager
-}
-
-// AuthSession is a session object related to auth
+// Session is a session object related to auth
 // state of the User
-type AuthSession struct {
-	ID              uuid.UUID         `json:"id"`
-	Active          bool              `json:"active"`
-	IssuedAt        time.Time         `json:"issued_at"`
-	ExpiresAt       time.Time         `json:"expires_at"`
-	AuthenticatedAt time.Time         `json:"authenticated_at"`
-	Identity        identity.Identity `json:"identity"`
+type Session struct {
+	ID uuid.UUID `json:"id"`
+	// IssuedAt defines the session was created
+	IssuedAt time.Time `json:"issued_at"`
+	// ExpiresAt defines the expiration of the session
+	ExpiresAt time.Time `json:"expires_at"`
+	// AuthenticatedAt defines the time when user was successfully
+	// logged meaning all requirements were met
+	AuthenticatedAt time.Time `json:"authenticated_at"`
+	// IdentityID is just that
+	IdentityID uuid.UUID `json:"-"`
 	// Credentials used to authenticate user
+	// This will never be passed on to the client
 	Credentials []credential.CredentialType `json:"-"`
+	// Identity is the identity, if any, that the session belongs to
+	//
+	// TODO: Determine whether this is necessary or not
+	Identity *identity.Identity `json:"identity,omitempty"`
 	// VerifiableContacts are contact methods be it
 	// email, sms, etc.
-	VerifiableContacts []contact.VerifiableContact `json:"verifiable_contacts"`
+	VerifiableContacts []contact.VerifiableContact `json:"verifiable_contacts,omitempty"`
 }
 
-func New(exp time.Time, i identity.Identity, c []credential.CredentialType, v []contact.VerifiableContact) (*AuthSession, error) {
+// New creates a new session
+func New(exp time.Time, i identity.Identity, c []credential.CredentialType, v []contact.VerifiableContact) (*Session, error) {
 	uid, err := uuid.NewV4()
 	if err != nil {
 		return nil, err
 	}
 
-	newSession := AuthSession{
+	newSession := Session{
 		ID:              uid,
-		Active:          true,
 		IssuedAt:        time.Now(),
 		AuthenticatedAt: time.Now(),
 		// ExpiresAt 2 weeks
 		ExpiresAt: exp,
 
-		Identity:           i,
-		Credentials:        c,
+		IdentityID:  i.ID,
+		Credentials: c,
+
+		Identity:           &i,
 		VerifiableContacts: v,
 	}
 	return &newSession, nil
-}
-
-// Manager
-//
-func NewManager(secure bool, cookieName string, lifetime time.Duration) (*Manager, error) {
-	registerSessionOnce.Do(func() {
-		gob.Register(AuthSession{})
-	})
-
-	manager := scs.New()
-	manager.Lifetime = lifetime
-	manager.Cookie.Name = cookieName
-	if secure {
-		manager.Cookie.Secure = true
-		manager.Cookie.Persist = true
-		manager.Cookie.HttpOnly = true
-		manager.Cookie.SameSite = http.SameSiteLaxMode
-	}
-	return &Manager{manager}, nil
-}
-
-func (m *Manager) PutAuth(ctx context.Context, i identity.Identity, c []credential.CredentialType) error {
-	// Separate contacts from the identity
-	// to ease readbility
-	vc := i.VerifiableContacts
-	i.VerifiableContacts = nil
-
-	newSession, err := New(time.Now().Add(m.Lifetime), i, c, vc)
-	if err != nil || newSession == nil {
-		return err
-	}
-	m.Put(ctx, "auth", *newSession)
-	return nil
-}
-
-func (m *Manager) GetAuth(ctx context.Context, strict bool) *AuthSession {
-	// Look if context has an auth session
-	sess, ok := m.Get(ctx, "auth").(AuthSession)
-	if !ok {
-		return nil
-	}
-
-	// Disregard status or expiration of session
-	// if strict is false
-	if !strict {
-		return &sess
-	}
-
-	// Run checks to make sure session is valid
-	if !sess.Active || sess.ExpiresAt.Before(time.Now()) {
-		return nil
-	}
-
-	return &sess
 }
