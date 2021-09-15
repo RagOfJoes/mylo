@@ -3,7 +3,7 @@ package contact
 import (
 	"time"
 
-	"github.com/RagOfJoes/idp"
+	"github.com/RagOfJoes/idp/internal"
 	"github.com/gofrs/uuid"
 )
 
@@ -22,7 +22,7 @@ const (
 )
 
 type VerifiableContact struct {
-	idp.Base
+	internal.Base
 	// Verified flag
 	Verified bool `json:"verified" gorm:"default:false"`
 	// VerifiedAt is the verification date
@@ -56,18 +56,15 @@ type VerifiableContact struct {
 
 type Repository interface {
 	// Create creates a new VerifiableContact
-	Create(...VerifiableContact) ([]*VerifiableContact, error)
+	Create(...VerifiableContact) ([]VerifiableContact, error)
 	// Update updates a new VerifiableContact
 	Update(VerifiableContact) (*VerifiableContact, error)
 	// Get retrieves a single VerifiableContact given its
-	// id or identity id
+	// id
 	Get(uuid.UUID) (*VerifiableContact, error)
 	// GetByValue retrieves a VerifiableContact given an address
 	// value
 	GetByValue(string) (*VerifiableContact, error)
-	// GetWithConditions retrieves all VerifiableContact given
-	// a custom conditional values
-	GetWithConditions(...interface{}) ([]*VerifiableContact, error)
 	// Delete deletes a single VerifiableContact
 	Delete(uuid.UUID) error
 	// DeleteAllUser deletes all VerifiableContact of a User
@@ -76,7 +73,9 @@ type Repository interface {
 }
 
 type Service interface {
+	// Find finds a single contact based on
+	Find(string) (*VerifiableContact, error)
 	// Add adds a single or a collection of contacts. This should ideally
 	// merge new and old VerifiableContact that a user owns
-	Add(...VerifiableContact) ([]*VerifiableContact, error)
+	Add(...VerifiableContact) ([]VerifiableContact, error)
 }

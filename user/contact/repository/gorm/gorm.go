@@ -14,12 +14,9 @@ func NewGormContactRepository(d *gorm.DB) contact.Repository {
 	return &gormContactRepository{DB: d}
 }
 
-func (g *gormContactRepository) Create(v ...contact.VerifiableContact) ([]*contact.VerifiableContact, error) {
-	var n []*contact.VerifiableContact
-	for _, a := range v {
-		n = append(n, &a)
-	}
-	if err := g.DB.CreateInBatches(&n, len(n)).Error; err != nil {
+func (g *gormContactRepository) Create(v ...contact.VerifiableContact) ([]contact.VerifiableContact, error) {
+	n := v
+	if err := g.DB.CreateInBatches(n, len(n)).Error; err != nil {
 		return nil, err
 	}
 	return n, nil
@@ -35,7 +32,7 @@ func (g *gormContactRepository) Update(v contact.VerifiableContact) (*contact.Ve
 
 func (g *gormContactRepository) Get(i uuid.UUID) (*contact.VerifiableContact, error) {
 	var v contact.VerifiableContact
-	if err := g.DB.Where("id = ?", i).Or("identity_id = ?", i).First(&v).Error; err != nil {
+	if err := g.DB.Where("id = ?", i).First(&v).Error; err != nil {
 		return nil, err
 	}
 	return &v, nil
@@ -43,18 +40,10 @@ func (g *gormContactRepository) Get(i uuid.UUID) (*contact.VerifiableContact, er
 
 func (g *gormContactRepository) GetByValue(s string) (*contact.VerifiableContact, error) {
 	var v contact.VerifiableContact
-	if err := g.DB.First(&v, "value = ? ", s).Error; err != nil {
+	if err := g.DB.First(&v, "value = ?", s).Error; err != nil {
 		return nil, err
 	}
 	return &v, nil
-}
-
-func (g *gormContactRepository) GetWithConditions(conds ...interface{}) ([]*contact.VerifiableContact, error) {
-	var v []*contact.VerifiableContact
-	if err := g.DB.Find(&v, conds).Error; err != nil {
-		return nil, err
-	}
-	return v, nil
 }
 
 func (g *gormContactRepository) Delete(i uuid.UUID) error {
