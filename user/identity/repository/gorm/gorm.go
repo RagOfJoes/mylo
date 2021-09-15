@@ -1,7 +1,7 @@
 package gorm
 
 import (
-	"github.com/RagOfJoes/idp"
+	"github.com/RagOfJoes/idp/internal"
 	"github.com/RagOfJoes/idp/user/credential"
 	"github.com/RagOfJoes/idp/user/identity"
 	"github.com/gofrs/uuid"
@@ -69,7 +69,7 @@ func (g *gormUserRepository) Update(u identity.Identity) (*identity.Identity, er
 
 func (g *gormUserRepository) Delete(id uuid.UUID, permanent bool) error {
 	i := identity.Identity{
-		BaseSoftDelete: idp.BaseSoftDelete{
+		BaseSoftDelete: internal.BaseSoftDelete{
 			ID: id,
 		},
 	}

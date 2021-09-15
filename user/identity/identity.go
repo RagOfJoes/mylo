@@ -1,7 +1,7 @@
 package identity
 
 import (
-	idp "github.com/RagOfJoes/idp"
+	"github.com/RagOfJoes/idp/internal"
 	"github.com/RagOfJoes/idp/user/contact"
 	"github.com/RagOfJoes/idp/user/credential"
 	"github.com/gofrs/uuid"
@@ -9,7 +9,7 @@ import (
 
 // Identity defines the base Identity model
 type Identity struct {
-	idp.BaseSoftDelete
+	internal.BaseSoftDelete
 	Avatar    string `json:"avatar" gorm:"size:1024;" validate:"url,min=1,max=1024"`
 	FirstName string `json:"first_name" gorm:"size:64" validate:"max=64,alphanumunicode"`
 	LastName  string `json:"last_name" gorm:"size:64" validate:"max=64,alphanumunicode"`

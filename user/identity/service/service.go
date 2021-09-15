@@ -1,25 +1,20 @@
 package service
 
 import (
-	"errors"
 	"runtime"
 
-	"github.com/RagOfJoes/idp"
+	"github.com/RagOfJoes/idp/internal"
 	"github.com/RagOfJoes/idp/user/identity"
 	goaway "github.com/TwinProduction/go-away"
 	"github.com/gofrs/uuid"
 )
 
 var (
-	ErrDeleteUser        = errors.New("failed to delete user")
-	ErrInvalidIdentityID = errors.New("invalid user id provided")
-	ErrInvalidIdentifier = errors.New("invalid username or email provided. username or email is either already taken or contains invalid characters")
-
 	errInvalidID = func(src error) error {
-		return idp.NewServiceClientError(src, "identity_id_invalid", "Invalid id provided", nil)
+		return internal.NewServiceClientError(src, "identity_id_invalid", "Invalid id provided", nil)
 	}
 	errInvalidUsername = func(src error) error {
-		return idp.NewServiceClientError(src, "identity_username_invalid", "Invalid username provided. Username is either already taken or contains invalid characters", nil)
+		return internal.NewServiceClientError(src, "identity_username_invalid", "Invalid username provided. Username is either already taken or contains invalid characters", nil)
 	}
 )
 
@@ -46,7 +41,7 @@ func (s *service) Create(i identity.Identity, username string, password string) 
 	}
 	newUser, err := s.ir.Create(builtUser)
 	if err != nil {
-		return nil, idp.NewServiceClientError(err, "identity_create_fail", "Invalid email/username provided", nil)
+		return nil, internal.NewServiceClientError(err, "identity_create_fail", "Invalid email/username provided", nil)
 	}
 	// 3. Return new user
 	return newUser, nil
@@ -57,13 +52,13 @@ func (s *service) Find(i string) (*identity.Identity, error) {
 	if err == nil {
 		f, err := s.ir.Get(uid, false)
 		if err != nil {
-			return nil, idp.NewServiceClientError(err, "identity_find_fail", "Invalid ID provided", nil)
+			return nil, errInvalidID(err)
 		}
 		return f, nil
 	}
 	f, err := s.ir.GetIdentifier(i, false)
 	if err != nil {
-		return nil, idp.NewServiceClientError(err, "identity_find_fail", "Invalid email/username provided", nil)
+		return nil, errInvalidUsername(err)
 	}
 	return f, nil
 }
@@ -76,7 +71,7 @@ func (s *service) Delete(i string, perm bool) error {
 	}
 	if err := s.ir.Delete(id, perm); err != nil {
 		_, file, line, _ := runtime.Caller(1)
-		return idp.NewServiceInternalError(file, line, "identity_delete_fail", "Failed to delete Identity")
+		return internal.NewServiceInternalError(file, line, "identity_delete_fail", "Failed to delete Identity")
 	}
 	return nil
 }
