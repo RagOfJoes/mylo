@@ -2,9 +2,16 @@ package transport
 
 import (
 	"fmt"
+	"net/http"
+
+	"github.com/RagOfJoes/idp/internal"
+	"github.com/RagOfJoes/idp/user/identity"
 )
 
 type HttpClientError struct {
+	// Source of the error for better
+	// insight when capturing errors
+	Source error `json:"-"`
 	// Http StatusCode code
 	StatusCode int `json:"-"`
 	// Human readable summary of error
@@ -13,24 +20,26 @@ type HttpClientError struct {
 	Description string `json:"message"`
 	// Object that can provide further insight
 	// to the error. Only accessible internally
-	Details *map[string]interface{} `json:"-"`
+	Details map[string]interface{} `json:"-"`
 }
 
 type HttpInternalError struct {
-	Addr        string `json:"-"`
-	File        string `json:"-"`
-	Line        int    `json:"-"`
-	Summary     string `json:"-"`
-	Description string `json:"-"`
+	Original    error                  `json:"-"`
+	File        string                 `json:"-"`
+	Line        int                    `json:"-"`
+	Summary     string                 `json:"-"`
+	Description string                 `json:"-"`
+	Details     map[string]interface{} `json:"-"`
 }
 
-func NewHttpClientError(status int, summ string, desc string, details *map[string]interface{}) error {
+func NewHttpClientError(src error, status int, summ string, desc string, details map[string]interface{}) error {
 	err := &HttpClientError{
+		Source:      src,
 		Summary:     summ,
 		Description: desc,
 		StatusCode:  status,
 	}
-	if details != nil && len(*details) > 0 {
+	if len(details) > 0 {
 		err.Details = details
 	}
 	return err
@@ -51,24 +60,67 @@ func (h *HttpClientError) Message() string {
 	return h.Description
 }
 
-func NewHttpInternalError(file string, line int, summ string, desc string) error {
+func NewHttpInternalError(orig error, file string, line int, summ string, desc string, details map[string]interface{}) error {
 	return &HttpInternalError{
+		Original:    orig,
 		File:        file,
 		Line:        line,
 		Summary:     summ,
 		Description: desc,
+		Details:     details,
 	}
 }
 
 func (h *HttpInternalError) Error() string {
-	return fmt.Sprintf("%s: %s", h.Source(), h.Description)
+	return fmt.Sprintf("%s\n%s", h.Source(), h.Description)
 }
 func (h *HttpInternalError) Source() string {
-	return fmt.Sprintf("[%s:%d]", h.File, h.Line)
+	return fmt.Sprintf("[%s:%d] Original Error: %s", h.File, h.Line, h.Original)
 }
 func (h *HttpInternalError) Title() string {
 	return h.Summary
 }
 func (h *HttpInternalError) Message() string {
 	return h.Description
+}
+
+// Common errors
+
+func ErrNotAuthenticated(src error, requestURL string) error {
+	return NewHttpClientError(src, http.StatusUnauthorized, "NotAuthenticated", "You must be logged in to access this resource", map[string]interface{}{
+		"RequestURL": requestURL,
+	})
+}
+
+func ErrAlreadyAuthenticated(src error, requestURL string, user identity.Identity) error {
+	return NewHttpClientError(src, http.StatusForbidden, "AlreadyAuthenticated", "Cannot access this resource while logged in", map[string]interface{}{
+		"RequestURL": requestURL,
+		"Identity":   user,
+	})
+}
+
+func ErrInvalidFlowID(src error, flowID, requestURL string, user *identity.Identity) error {
+	details := map[string]interface{}{
+		"FlowID":     flowID,
+		"RequestURL": requestURL,
+	}
+	if user != nil {
+		details["Identity"] = user
+	}
+	return NewHttpClientError(src, http.StatusNotFound, "InvalidFlowID", "Invalid flow id provided", details)
+}
+
+// GetHttpError is a utility function that takes an error, fallback error, and a map of Http status codes then generates a valid Http error response
+func GetHttpError(src error, fallback error, errMap map[string]int) error {
+	e, ok := src.(*internal.ServiceClientError)
+	if ok {
+		d := e.Details
+		code, ok := errMap[e.Summary]
+		if !ok {
+			// Default to 400
+			code = http.StatusBadRequest
+		}
+		return NewHttpClientError(src, code, e.Summary, e.Description, d)
+	}
+	return fallback
 }

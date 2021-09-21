@@ -54,17 +54,15 @@ type ServiceClientError struct {
 	Description string `json:"message"`
 	// Object that can provide further insight
 	// to the client
-	Details *map[string]interface{} `json:"details,omitempty"`
+	Details map[string]interface{} `json:"details,omitempty"`
 }
 
-func NewServiceClientError(src error, summ string, desc string, details *map[string]interface{}) error {
+func NewServiceClientError(src error, summ string, desc string, details map[string]interface{}) error {
 	err := &ServiceClientError{
 		Source:      src,
 		Summary:     summ,
 		Description: desc,
-	}
-	if details != nil && len(*details) > 0 {
-		err.Details = details
+		Details:     details,
 	}
 	return err
 }
@@ -86,26 +84,36 @@ func (h *ServiceClientError) Message() string {
 
 // ServiceInternalError
 type ServiceInternalError struct {
-	File        string `json:"-"`
-	Line        int    `json:"-"`
-	Summary     string `json:"-"`
+	// Original error
+	Original error `json:"-"`
+	// File defines the file that threw the error
+	File string `json:"-"`
+	// Line defines the line that threw the error
+	Line int `json:"-"`
+	// Summary defines a human readable summary of error
+	Summary string `json:"-"`
+	// Description define a human readable description of error
 	Description string `json:"-"`
+	// Detail describes an object that can provide further insight of error
+	Details map[string]interface{}
 }
 
-func NewServiceInternalError(file string, line int, summ string, desc string) error {
+func NewServiceInternalError(orig error, file string, line int, summ string, desc string, details map[string]interface{}) error {
 	return &ServiceInternalError{
+		Original:    orig,
 		File:        file,
 		Line:        line,
 		Summary:     summ,
 		Description: desc,
+		Details:     details,
 	}
 }
 
 func (h *ServiceInternalError) Error() string {
-	return fmt.Sprintf("%s: %s", h.Source(), h.Description)
+	return fmt.Sprintf("%s\n%s", h.Source(), h.Description)
 }
 func (h *ServiceInternalError) Source() string {
-	return fmt.Sprintf("[%s:%d]", h.File, h.Line)
+	return fmt.Sprintf("[%s:%d] Original Error: %s", h.File, h.Line, h.Original)
 }
 func (h *ServiceInternalError) Title() string {
 	return h.Summary
