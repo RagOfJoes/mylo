@@ -17,10 +17,26 @@ import (
 )
 
 var (
-	errInvalidFlowID = internal.NewServiceClientError(nil, "registration_flowid_invalid", "Invalid or expired flow id provided", nil)
-	errNanoIDGen     = func() error {
+	errInvalidFlowID = func(src error, f string) error {
+		return internal.NewServiceClientError(src, "Registration_InvalidFlow", "Invalid or expired flow", map[string]interface{}{
+			"FlowID": f,
+		})
+	}
+	errInvalidFlow = func(src error, f registration.Flow) error {
+		return internal.NewServiceClientError(src, "Registration_InvalidFlow", "Invalid or expired flow", map[string]interface{}{
+			"Flow": f,
+		})
+	}
+	errInvalidPayload = func(src error, f registration.Flow, p registration.Payload) error {
+		return internal.NewServiceClientError(src, "Registration_InvalidPayload", "Invalid identifier(s) or password provided", map[string]interface{}{
+			"Flow":    f,
+			"Payload": p,
+		})
+	}
+	// Internal Errors
+	errNanoIDGen = func(src error) error {
 		_, file, line, _ := runtime.Caller(1)
-		return internal.NewServiceInternalError(file, line, "registration_nanoid_gen", "Failed to generate new nanoid token")
+		return internal.NewServiceInternalError(src, file, line, "Registration_FailedNanoID", "Failed to generate nano id", nil)
 	}
 )
 
@@ -43,7 +59,7 @@ func NewRegistrationService(r registration.Repository, cos contact.Service, cs c
 func (s *service) New(requestURL string) (*registration.Flow, error) {
 	fid, err := nanoid.New()
 	if err != nil {
-		return nil, errNanoIDGen()
+		return nil, errNanoIDGen(err)
 	}
 
 	cfg := config.Get()
@@ -57,45 +73,57 @@ func (s *service) New(requestURL string) (*registration.Flow, error) {
 		RequestURL: requestURL,
 	})
 	if err != nil {
-		return nil, internal.NewServiceClientError(err, "registration_init", "Failed to create new Registration", nil)
+		_, file, line, _ := runtime.Caller(1)
+		return nil, internal.NewServiceInternalError(err, file, line, "Registration_FailedCreate", "Failed to create new registration flow", map[string]interface{}{
+			"Flow": n,
+		})
 	}
 	return n, nil
 }
 
 func (s *service) Find(flowID string) (*registration.Flow, error) {
 	if flowID == "" {
-		return nil, errInvalidFlowID
+		return nil, errInvalidFlowID(nil, flowID)
 	}
+	// Try to get Flow
 	f, err := s.r.GetByFlowID(flowID)
-	if err != nil || f == nil || f.ExpiresAt.Before(time.Now()) {
-		return nil, errInvalidFlowID
+	// Check for error or empty flow
+	if err != nil || f == nil {
+		return nil, errInvalidFlowID(err, flowID)
+	}
+	// Check for expired flow
+	if f.ExpiresAt.Before(time.Now()) {
+		return nil, errInvalidFlow(nil, *f)
 	}
 	return f, nil
 }
 
-func (s *service) Submit(flowID string, payload registration.Payload) (*identity.Identity, error) {
-	// 1. Make sure the flow is still valid
-	_, err := s.Find(flowID)
-	if err != nil {
-		return nil, err
+func (s *service) Submit(flow registration.Flow, payload registration.Payload) (*identity.Identity, error) {
+	// Validate flow
+	if err := validate.Check(flow); err != nil {
+		return nil, errInvalidFlow(err, flow)
 	}
-	// 2. Validate payload provided
+	// Validate payload
 	if err := validate.Check(payload); err != nil {
 		return nil, err
 	}
-	// 3. Create new Identity
+	// Instantiate new identity
 	tempIdentity := identity.Identity{
 		Email:     payload.Email,
 		FirstName: payload.FirstName,
 		LastName:  payload.LastName,
 	}
+	// Create new identity
+	// TODO: Determine whether or not we should wrap this error
 	newUser, err := s.is.Create(tempIdentity, payload.Username, payload.Password)
 	if err != nil {
 		return nil, err
 	}
-	// 4. Create error group to execute concurrent service calls
+
+	// Run multiple actions concurrently
+	// - Use Contact Service to create new contact for user
+	// - Use Credential Service to create new password credential for user
 	var eg errgroup.Group
-	// 5. Create contacts and append to newUser for response
 	eg.Go(func() error {
 		vc, err := s.cos.Add([]contact.Contact{
 			{
@@ -105,17 +133,13 @@ func (s *service) Submit(flowID string, payload registration.Payload) (*identity
 			},
 		}...)
 		if err != nil {
-			return err
+			return errInvalidPayload(err, flow, payload)
 		}
 
-		var vcf []contact.Contact
-		for _, c := range vc {
-			vcf = append(vcf, c)
-		}
-		newUser.Contacts = vcf
+		// Append new contact to instantiated identity
+		newUser.Contacts = append(newUser.Contacts, vc...)
 		return nil
 	})
-	// 6. Create password credential and append to newUser
 	eg.Go(func() error {
 		cr, err := s.cs.CreatePassword(newUser.ID, payload.Password, []credential.Identifier{
 			{
@@ -128,13 +152,14 @@ func (s *service) Submit(flowID string, payload registration.Payload) (*identity
 			},
 		})
 		if err != nil {
-			return err
+			return errInvalidPayload(err, flow, payload)
 		}
+		// Append new credential to instantited identity
 		newUser.Credentials = append(newUser.Credentials, *cr)
 		return nil
 	})
-	// 7. Check if error group executed with any errors. If so then delete
-	// new identity
+	// Check if any of the concurrent actions error'd out and if so
+	// perform a cascade delete on the user
 	if err := eg.Wait(); err != nil {
 		s.is.Delete(newUser.ID.String(), true)
 		return nil, err
