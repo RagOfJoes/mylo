@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"net/http"
 	"runtime"
-	"time"
 
 	"github.com/RagOfJoes/idp/flow/login"
 	"github.com/RagOfJoes/idp/internal/config"
@@ -14,14 +13,18 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-const (
-	loginFlowIDCookie string = "loginFid"
-)
-
 var (
-	errInit                 error = transport.NewHttpClientError(http.StatusInternalServerError, "login_init_fail", "Failed to initialize login flow", nil)
-	errAlreadyAuthenticated error = transport.NewHttpClientError(http.StatusForbidden, "already_authenticated", "Cannot login since you're already authenticated", nil)
-	errInvalidPayload       error = transport.NewHttpClientError(http.StatusBadRequest, "login_payload_invalid", "Invalid payload provided", nil)
+	errFailedInit = func(src error) error {
+		return transport.GetHttpError(src, transport.NewHttpClientError(src, http.StatusInternalServerError, "Login_FailedInit", "Failed to crete new login flow. Please try again later.", nil), HttpCodeMap)
+	}
+	errInvalidFlowID = func(src error, fid string) error {
+		return transport.GetHttpError(src, transport.NewHttpClientError(src, http.StatusNotFound, "Login_InvalidFlow", "Invalid or expired flow", map[string]interface{}{"FlowID": fid}), HttpCodeMap)
+	}
+	errInvalidPayload = func(src error, f login.Flow) error {
+		return transport.GetHttpError(src, transport.NewHttpClientError(src, http.StatusBadRequest, "Login_InvalidPayload", "Invalid identifier and/or password provided", map[string]interface{}{
+			"Flow": f,
+		}), HttpCodeMap)
+	}
 )
 
 type Http struct {
@@ -46,8 +49,8 @@ func NewLoginHttp(s login.Service, sm *session.Manager, r *gin.Engine) {
 
 func (h *Http) initFlow() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		if transport.IsAuthenticated(c) != nil {
-			c.Error(errAlreadyAuthenticated)
+		if sess := transport.IsAuthenticated(c); sess != nil {
+			c.Error(transport.ErrAlreadyAuthenticated(nil, c.Request.URL.Path, *sess.Identity))
 			return
 		}
 
@@ -59,24 +62,10 @@ func (h *Http) initFlow() gin.HandlerFunc {
 		}
 		newFlow, err := h.s.New(fullURL)
 		if err != nil {
-			c.Error(errInit)
+			c.Error(errFailedInit(err))
 			return
 		}
 
-		fidCookie, err := c.Cookie(loginFlowIDCookie)
-		if err != http.ErrNoCookie && fidCookie != "" {
-			f, err := h.s.Find(fidCookie)
-			if err == nil {
-				resp := transport.HttpResponse{
-					Success: true,
-					Payload: f,
-				}
-				c.JSON(http.StatusOK, resp)
-				return
-			}
-		}
-
-		c.SetCookie(loginFlowIDCookie, newFlow.FlowID, int(time.Until(newFlow.ExpiresAt)/time.Second), "/login", "", false, false)
 		c.JSON(http.StatusOK, transport.HttpResponse{
 			Success: true,
 			Payload: newFlow,
@@ -86,10 +75,15 @@ func (h *Http) initFlow() gin.HandlerFunc {
 
 func (h *Http) getFlow() gin.HandlerFunc {
 	return func(c *gin.Context) {
+		if sess := transport.IsAuthenticated(c); sess != nil {
+			c.Error(transport.ErrAlreadyAuthenticated(nil, c.Request.URL.Path, *sess.Identity))
+			return
+		}
+
 		fid := c.Param("flow_id")
 		f, err := h.s.Find(fid)
 		if err != nil {
-			c.Error(err)
+			c.Error(errInvalidFlowID(err, fid))
 			return
 		}
 		c.JSON(http.StatusOK, transport.HttpResponse{
@@ -101,29 +95,29 @@ func (h *Http) getFlow() gin.HandlerFunc {
 
 func (h *Http) submitFlow() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		if transport.IsAuthenticated(c) != nil {
-			c.Error(errAlreadyAuthenticated)
+		if sess := transport.IsAuthenticated(c); sess != nil {
+			c.Error(transport.ErrAlreadyAuthenticated(nil, c.Request.URL.Path, *sess.Identity))
 			return
 		}
 
 		// Validate flow id
 		fid := c.Param("flow_id")
-		_, err := h.s.Find(fid)
+		f, err := h.s.Find(fid)
 		if err != nil {
-			c.Error(err)
+			c.Error(errInvalidFlowID(err, fid))
 			return
 		}
 		// Validate that all the required
 		// inputs are present
 		var dest login.Payload
 		if err := c.ShouldBind(&dest); err != nil {
-			c.Error(errInvalidPayload)
+			c.Error(errInvalidPayload(err, *f))
 			return
 		}
 
-		user, err := h.s.Submit(fid, dest)
+		user, err := h.s.Submit(*f, dest)
 		if err != nil {
-			c.Error(err)
+			c.Error(errInvalidPayload(err, *f))
 			return
 		}
 
@@ -133,7 +127,10 @@ func (h *Http) submitFlow() gin.HandlerFunc {
 		sess, err := h.sm.Insert(cpy, user, []credential.CredentialType{credential.Password})
 		if err != nil {
 			_, file, line, _ := runtime.Caller(1)
-			c.Error(transport.NewHttpInternalError(file, line, "session_insert", "Failed to create a new Auth Session"))
+			c.Error(transport.NewHttpInternalError(err, file, line, "Session_FailedInsert", "Failed to insert new session into session store", map[string]interface{}{
+				"Flow":     f,
+				"Identity": user,
+			}))
 			return
 		}
 		c.Request = c.Request.WithContext(cpy)

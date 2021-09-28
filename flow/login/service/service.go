@@ -16,10 +16,26 @@ import (
 )
 
 var (
-	errInvalidFlowID = internal.NewServiceClientError(nil, "login_flowid_invalid", "Invalid or expired flow id provided", nil)
-	errNanoIDGen     = func() error {
+	errInvalidFlowID = func(src error, f string) error {
+		return internal.NewServiceClientError(src, "Login_InvalidFlow", "Invalid or expired flow", map[string]interface{}{
+			"FlowID": f,
+		})
+	}
+	errInvalidFlow = func(src error, f login.Flow) error {
+		return internal.NewServiceClientError(src, "Login_InvalidFlow", "Invalid or expired flow", map[string]interface{}{
+			"Flow": f,
+		})
+	}
+	errInvalidPayload = func(src error, f login.Flow, p login.Payload) error {
+		return internal.NewServiceClientError(src, "Login_InvalidPayload", "Invalid identifier or password provided", map[string]interface{}{
+			"Flow":    f,
+			"Payload": p,
+		})
+	}
+	// Internal Errors
+	errNanoIDGen = func(src error) error {
 		_, file, line, _ := runtime.Caller(1)
-		return internal.NewServiceInternalError(file, line, "login_nanoid_gen", "Failed to generate new nanoid token")
+		return internal.NewServiceInternalError(src, file, line, "Login_FailedNanoID", "Failed to generate nano id", nil)
 	}
 )
 
@@ -42,61 +58,70 @@ func NewLoginService(r login.Repository, cos contact.Service, cs credential.Serv
 func (s *service) New(requestURL string) (*login.Flow, error) {
 	fid, err := nanoid.New()
 	if err != nil {
-		return nil, errNanoIDGen()
+		return nil, errNanoIDGen(err)
 	}
 
 	cfg := config.Get()
 	action := fmt.Sprintf("%s/%s/%s", cfg.Server.URL, cfg.Login.URL, fid)
 	expire := time.Now().Add(cfg.Login.Lifetime)
 	form := generateForm(action)
-	n, err := s.r.Create(login.Flow{
+	f := login.Flow{
 		FlowID:     fid,
 		Form:       form,
 		ExpiresAt:  expire,
 		RequestURL: requestURL,
-	})
+	}
+
+	n, err := s.r.Create(f)
 	if err != nil {
-		return nil, internal.NewServiceClientError(err, "login_init", "Failed to create new Login", nil)
+		_, file, line, _ := runtime.Caller(1)
+		return nil, internal.NewServiceInternalError(err, file, line, "Login_FailedCreate", "Failed to create new login flow", map[string]interface{}{
+			"Flow": f,
+		})
 	}
 	return n, nil
 }
 
 func (s *service) Find(flowID string) (*login.Flow, error) {
 	if flowID == "" {
-		return nil, errInvalidFlowID
+		return nil, errInvalidFlowID(nil, flowID)
 	}
 	f, err := s.r.GetByFlowID(flowID)
-	if err != nil || f == nil || f.ExpiresAt.Before(time.Now()) {
-		return nil, errInvalidFlowID
+	// Check for error or empty flow
+	if err != nil || f == nil {
+		return nil, errInvalidFlowID(err, flowID)
+	}
+	// Check for expired flow
+	if f.ExpiresAt.Before(time.Now()) {
+		return nil, errInvalidFlow(nil, *f)
 	}
 	return f, nil
 }
 
-func (s *service) Submit(flowID string, payload login.Payload) (*identity.Identity, error) {
-	// 1. Ensure that the flow is still valid
-	flow, err := s.Find(flowID)
-	if err != nil {
-		return nil, err
+func (s *service) Submit(flow login.Flow, payload login.Payload) (*identity.Identity, error) {
+	// Validate flow
+	if err := validate.Check(flow); err != nil {
+		return nil, errInvalidFlow(err, flow)
 	}
-	// 2. Validate payload provided
+	// Validate payload provided
 	if err := validate.Check(payload); err != nil {
-		return nil, err
+		return nil, errInvalidPayload(err, flow, payload)
 	}
-	// 3.Retrieve identity based on identifier provided
+	// Retrieve identity based on identifier provided
 	id, err := s.is.Find(payload.Identifier)
 	if err != nil {
-		return nil, err
+		return nil, errInvalidPayload(err, flow, payload)
 	}
-	// 4. Use retrieved identity ID to then retrieve
+	// Use retrieved identity ID to then retrieve
 	// the hashed password credential then decode it
 	// and compare provided password attempt
 	if err := s.cs.ComparePassword(id.ID, payload.Password); err != nil {
-		return nil, err
+		return nil, errInvalidPayload(err, flow, payload)
 	}
 	// 5. If everything passes then delete flow
-	if err := s.r.Delete(flow.ID); err != nil {
-		_, file, line, _ := runtime.Caller(1)
-		return nil, internal.NewServiceInternalError(file, line, "login_delete_fail", "Failed to delete registration flow")
-	}
+	// TODO: Capture error, if any, here
+	go func() {
+		s.r.Delete(flow.ID)
+	}()
 	return id, nil
 }

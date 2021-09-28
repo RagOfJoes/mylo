@@ -34,7 +34,7 @@ type Repository interface {
 type Service interface {
 	New(requestURL string) (*Flow, error)
 	Find(flowID string) (*Flow, error)
-	Submit(flowID string, payload Payload) (*identity.Identity, error)
+	Submit(flow Flow, payload Payload) (*identity.Identity, error)
 }
 
 // TableName overrides GORM's table name
