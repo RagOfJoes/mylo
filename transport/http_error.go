@@ -99,17 +99,6 @@ func ErrAlreadyAuthenticated(src error, requestURL string, user identity.Identit
 	})
 }
 
-func ErrInvalidFlowID(src error, flowID, requestURL string, user *identity.Identity) error {
-	details := map[string]interface{}{
-		"FlowID":     flowID,
-		"RequestURL": requestURL,
-	}
-	if user != nil {
-		details["Identity"] = user
-	}
-	return NewHttpClientError(src, http.StatusNotFound, "InvalidFlowID", "Invalid flow id provided", details)
-}
-
 // GetHttpError is a utility function that takes an error, fallback error, and a map of Http status codes then generates a valid Http error response
 func GetHttpError(src error, fallback error, errMap map[string]int) error {
 	e, ok := src.(*internal.ServiceClientError)
