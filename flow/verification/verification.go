@@ -31,7 +31,7 @@ type Flow struct {
 	RequestURL string `json:"-" gorm:"not null" validate:"required"`
 	// Status defines the current state of the flow
 	Status Status `json:"status" gorm:"not null" validate:"required"`
-	// FlowID defines the unique identifier that will a user will use to
+	// FlowID defines the unique identifier that user's will use to access the flow
 	FlowID string `json:"-" gorm:"not null;uniqueIndex" validate:"required"`
 	// ExpiresAt defines the time when this flow will no longer be valid
 	ExpiresAt time.Time `json:"expires_at" gorm:"index;not null" validate:"required"`
@@ -40,15 +40,15 @@ type Flow struct {
 	Form *form.Form `json:"form,omitempty" gorm:"type:json;default:null"`
 
 	// ContactID defines the contact that this flow belongs to
-	ContactID uuid.UUID `gorm:"index;not null" validate:"required,uuid4"`
+	ContactID uuid.UUID `json:"-" gorm:"index;not null" validate:"required"`
 	// IdentityID defines the user that this flow belongs to
-	IdentityID uuid.UUID `gorm:"index;not null" validate:"required,uuid4"`
+	IdentityID uuid.UUID `json:"-" gorm:"index;not null" validate:"required"`
 }
 
 // NewPayload defines the data required to initiate the flow
 type NewPayload struct {
 	// Contact should be the id of whatever contact the user wants to verify
-	Contact string `json:"contact" form:"contact" binding:"required" validate:"required,uuid4"`
+	Contact string `json:"contact" form:"contact" binding:"required" validate:"required"`
 }
 
 // SessionWarnPayload defines the form that will be rendered
@@ -77,12 +77,11 @@ type Repository interface {
 // Service defines
 type Service interface {
 	// New creates a new verification flow
-	New(identity identity.Identity, contact contact.Contact, requestURL string, status Status) (*Flow, error)
-	// NewWelcome creates a new verification flow for a new user
-	NewWelcome(identity identity.Identity, contact contact.Contact, requestURL string) (*Flow, error)
-	Find(flowID string, identityID uuid.UUID) (*Flow, error)
+	New(identity identity.Identity, contact contact.Contact, requestURL string, status Status, newUser bool) (*Flow, error)
+	// Find does exactly that
+	Find(flowID string, identity identity.Identity) (*Flow, error)
 	// Verify either completes the flow or moves to next status
-	Verify(flowID string, identity identity.Identity, payload interface{}) (*Flow, error)
+	Verify(flow Flow, identity identity.Identity, payload interface{}) (*Flow, error)
 }
 
 // TableName overrides GORM's table name

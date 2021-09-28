@@ -15,55 +15,52 @@ import (
 	"github.com/RagOfJoes/idp/user/contact"
 	"github.com/RagOfJoes/idp/user/credential"
 	"github.com/RagOfJoes/idp/user/identity"
-	"github.com/gofrs/uuid"
-	"golang.org/x/sync/errgroup"
 )
 
 var (
-	errInvalidFlowID = func(src error, f string, i uuid.UUID) error {
-		return internal.NewServiceClientError(src, "verification_flowid_invalid", "Invalid or expired flow id provided", &map[string]interface{}{
-			"FlowID":     f,
-			"IdentityID": i,
+	errInvalidFlowID = func(src error, i identity.Identity, f string) error {
+		return internal.NewServiceClientError(src, "Verification_InvalidFlow", "Invalid or expired flow", map[string]interface{}{
+			"Identity": i,
+			"FlowID":   f,
+		})
+	}
+	errInvalidFlow = func(src error, i identity.Identity, f verification.Flow) error {
+		return internal.NewServiceClientError(src, "Verification_InvalidFlow", "Invalid or expired flow", map[string]interface{}{
+			"Identity": i,
+			"Flow":     f,
 		})
 	}
 	errInvalidContact = func(i identity.Identity, c contact.Contact) error {
-		return internal.NewServiceClientError(nil, "verification_invalid_contact", "Contact is either already verified or does not exist", &map[string]interface{}{
+		return internal.NewServiceClientError(nil, "Verification_InvalidContact", "Contact is either already verified or does not exist", map[string]interface{}{
 			"Identity": i,
 			"Contact":  c,
 		})
 	}
-	errInvalidContactMatch = func(i uuid.UUID, c contact.Contact) error {
-		return internal.NewServiceClientError(nil, "verification_invalid_contact", "Contact is either already verified or does not exist", &map[string]interface{}{
-			"IdentityID": i,
-			"Contact":    c,
+	errInvalidSessionWarn = func(src error, i identity.Identity, f verification.Flow, p verification.SessionWarnPayload) error {
+		err := "Invalid payload provided"
+		if src != nil {
+			err = src.Error()
+		}
+		return internal.NewServiceClientError(src, "Verification_InvalidSessionWarnPayload", err, map[string]interface{}{
+			"Identity": i,
+			"Flow":     f,
+			"Payload":  p,
 		})
 	}
-	errInvalidUser = func(f string, i uuid.UUID) error {
-		return internal.NewServiceClientError(nil, "verification_invalid_user", "Account does not exist or invalid verification code provided", &map[string]interface{}{
-			"FlowID":     f,
-			"IdentityID": i,
+	// Internal Errors
+	errNanoIDGen = func(src error, i identity.Identity) error {
+		_, file, line, _ := runtime.Caller(1)
+		return internal.NewServiceInternalError(src, file, line, "Verification_FailedNanoID", "Failed to generate nano id", map[string]interface{}{
+			"Identity": i,
 		})
 	}
-	errInvalidPayload = func(f verification.Flow) error {
-		return internal.NewServiceClientError(nil, "verification_invalid_payload", "Invalid payload provided", &map[string]interface{}{
-			"Flow": f,
+	errUpdateFlow = func(src error, i identity.Identity, o verification.Flow, n verification.Flow) error {
+		_, file, line, _ := runtime.Caller(1)
+		return internal.NewServiceInternalError(src, file, line, "Verification_FailedUpdate", "Failed to update flow", map[string]interface{}{
+			"Identity": i,
+			"OldFlow":  o,
+			"NewFlow":  n,
 		})
-	}
-	errNanoIDGen = func() error {
-		_, file, line, _ := runtime.Caller(1)
-		return internal.NewServiceInternalError(file, line, "verification_nanoid_gen", "Failed to generate new nanoid token")
-	}
-	errEmailSend = func() error {
-		_, file, line, _ := runtime.Caller(1)
-		return internal.NewServiceInternalError(file, line, "verification_email_send", "Failed to send email")
-	}
-	errUpdateFlow = func(src error, f verification.Flow, i identity.Identity) error {
-		_, file, line, _ := runtime.Caller(1)
-		return internal.NewServiceInternalError(file, line, "verification_update_failed", "Failed to update flow")
-	}
-	errUpdateContact = func(src error, f verification.Flow, i identity.Identity) error {
-		_, file, line, _ := runtime.Caller(1)
-		return internal.NewServiceInternalError(file, line, "verification_update_failed", "Failed to update contact")
 	}
 )
 
@@ -85,8 +82,7 @@ func NewVerificationService(e email.Client, r verification.Repository, cos conta
 	}
 }
 
-// TODO: Check if contact has an existing flow and reuse if it does
-func (s *service) New(identity identity.Identity, contact contact.Contact, requestURL string, status verification.Status) (*verification.Flow, error) {
+func (s *service) New(identity identity.Identity, contact contact.Contact, requestURL string, status verification.Status, newUser bool) (*verification.Flow, error) {
 	// Make sure contact provided belongs to identity
 	flag := false
 	for _, c := range identity.Contacts {
@@ -95,14 +91,11 @@ func (s *service) New(identity identity.Identity, contact contact.Contact, reque
 			break
 		}
 	}
-	if !flag {
-		return nil, errInvalidContactMatch(identity.ID, contact)
-	}
 	// Check if already verified
-	if contact.Verified {
+	if !flag || contact.Verified {
 		return nil, errInvalidContact(identity, contact)
 	}
-	// Check if contact has an existing flow and reuse if it does
+	// Check if contact has a valid existing flow and reuse if it does
 	ext, _ := s.r.GetByContact(contact.ID)
 	if ext != nil && ext.Status != verification.Success && ext.ExpiresAt.After(time.Now()) {
 		return ext, nil
@@ -110,7 +103,7 @@ func (s *service) New(identity identity.Identity, contact contact.Contact, reque
 	// Create new FlowID
 	fid, err := nanoid.New()
 	if err != nil {
-		return nil, errNanoIDGen()
+		return nil, errNanoIDGen(err, identity)
 	}
 	cfg := config.Get()
 	// Generate form depending on status
@@ -120,205 +113,83 @@ func (s *service) New(identity identity.Identity, contact contact.Contact, reque
 		action := fmt.Sprintf("%s/%s/%s", cfg.Server.URL, cfg.Verification.URL, fid)
 		gen := generatePasswordForm(action)
 		newForm = &gen
-		break
 	default:
 		newForm = nil
 	}
-	// Make new flow with given parameters
-	expire := time.Now().Add(time.Minute * 10)
-	// If status is LinkPending then send email
-	if status == verification.LinkPending {
-		if err := s.sendEmail(fid, identity, contact.Value, false); err != nil {
-			return nil, err
-		}
-	}
 	// Create flow and store in repository
-	created, err := s.r.Create(verification.Flow{
+	newFlow, err := s.r.Create(verification.Flow{
 		FlowID:     fid,
 		Status:     status,
-		ExpiresAt:  expire,
 		RequestURL: requestURL,
+		ExpiresAt:  time.Now().Add(cfg.Verification.Lifetime),
 
 		Form:       newForm,
 		ContactID:  contact.ID,
 		IdentityID: identity.ID,
 	})
 	if err != nil {
-		return nil, err
+		_, file, line, _ := runtime.Caller(1)
+		return nil, internal.NewServiceInternalError(err, file, line, "Verification_FailedCreate", "Failed to create new verification flow", map[string]interface{}{
+			"Identity": identity,
+			"Flow":     newFlow,
+		})
 	}
-	return created, nil
-}
-
-func (s *service) NewWelcome(identity identity.Identity, contact contact.Contact, requestURL string) (*verification.Flow, error) {
-	// Make sure contact provided belongs to identity
-	flag := false
-	for _, c := range identity.Contacts {
-		if c.ID == contact.ID {
-			flag = true
+	// If status is LinkPending then send email
+	if newFlow.Status == verification.LinkPending {
+		if err := s.sendEmail(*newFlow, identity, contact.Value, newUser); err != nil {
+			return nil, err
 		}
 	}
-	if !flag {
-		return nil, errInvalidContactMatch(identity.ID, contact)
-	}
-	// New FlowID
-	fid, err := nanoid.New()
-	if err != nil {
-		return nil, errNanoIDGen()
-	}
-	cfg := config.Get()
-	// New Flow
-	expire := time.Now().Add(cfg.Verification.Lifetime)
-	newFlow := verification.Flow{
-		FlowID:     fid,
-		ExpiresAt:  expire,
-		RequestURL: requestURL,
-		Status:     verification.LinkPending,
-
-		ContactID:  contact.ID,
-		IdentityID: identity.ID,
-	}
-	// Send email
-	if err := s.sendEmail(fid, identity, contact.Value, true); err != nil {
-		return nil, err
-	}
-	// Create and store flow in repository
-	created, err := s.r.Create(newFlow)
-	if err != nil {
-		return nil, err
-	}
-	return created, nil
+	return newFlow, nil
 }
 
-func (s *service) Find(flowID string, identityID uuid.UUID) (*verification.Flow, error) {
+func (s *service) Find(flowID string, identity identity.Identity) (*verification.Flow, error) {
 	if flowID == "" {
-		return nil, errInvalidFlowID(nil, flowID, identityID)
+		return nil, errInvalidFlowID(nil, identity, flowID)
 	}
+	// Try to get Flow
 	f, err := s.r.GetByFlowID(flowID)
-	if err != nil || f == nil || f.ExpiresAt.Before(time.Now()) {
-		return nil, errInvalidFlowID(err, flowID, identityID)
+	// Check for error or empty flow
+	if err != nil || f == nil {
+		return nil, errInvalidFlowID(err, identity, flowID)
 	}
-	if f.IdentityID != identityID {
-		return nil, errInvalidUser(flowID, identityID)
+	// Check for expired flow or if flow belongs to user
+	if f.ExpiresAt.Before(time.Now()) || f.IdentityID != identity.ID {
+		return nil, errInvalidFlow(nil, identity, *f)
 	}
 	return f, nil
 }
 
-func (s *service) Verify(flowID string, identity identity.Identity, payload interface{}) (*verification.Flow, error) {
-	f, err := s.Find(flowID, identity.ID)
-	if err != nil {
-		return nil, err
+func (s *service) Verify(flow verification.Flow, identity identity.Identity, payload interface{}) (*verification.Flow, error) {
+	// Validate flow then check if flow belongs to user
+	if err := validate.Check(flow); err != nil || flow.IdentityID != identity.ID {
+		return nil, errInvalidFlow(err, identity, flow)
 	}
-	switch f.Status {
+	// Check status
+	switch flow.Status {
 	case verification.LinkPending:
-		return s.verifyLinkPending(identity, *f)
+		return s.verifyLinkPending(flow, identity)
 	case verification.SessionWarn:
 		pay, ok := payload.(verification.SessionWarnPayload)
 		// Check that valid payload was provided
 		if !ok {
-			return nil, errInvalidPayload(*f)
+			return nil, errInvalidSessionWarn(nil, identity, flow, verification.SessionWarnPayload{})
 		}
-		return s.verifySessionWarning(identity, *f, pay)
+		return s.verifySessionWarning(flow, identity, pay)
+	case verification.Success:
+		return &flow, nil
 	}
-	return nil, internal.NewServiceClientError(nil, "verification_invalid_flow", "Invalid verification flow provided", &map[string]interface{}{
-		"Flow": f,
-	})
+	// If the status provided is invalid
+	return nil, errInvalidFlow(nil, identity, flow)
 }
 
-// Internal methods
-//
-func (s *service) verifyLinkPending(identity identity.Identity, flow verification.Flow) (*verification.Flow, error) {
-	// Compare IdentityID to make sure user attempting to verify is the proper user
-	if flow.IdentityID != identity.ID {
-		return nil, errInvalidUser(flow.FlowID, identity.ID)
-	}
-	// Run updates concurrently
-	// - Update flow
-	// - Update contact
-	var eg errgroup.Group
-	var updated *verification.Flow
-	eg.Go(func() error {
-		flow.Status = verification.Success
-		up, err := s.r.Update(flow)
-		if err != nil {
-			return errUpdateFlow(err, flow, identity)
-		}
-		updated = up
-		return nil
-	})
-	eg.Go(func() error {
-		vcs := identity.Contacts
-		for i, vc := range vcs {
-			if vc.ID == flow.ContactID {
-				now := time.Now()
-				vcs[i].Verified = true
-				vcs[i].UpdatedAt = &now
-				vcs[i].VerifiedAt = &now
-				vcs[i].State = contact.Completed
-			}
-		}
-		_, err := s.cos.Add(vcs...)
-		if err != nil {
-			return errUpdateContact(err, flow, identity)
-		}
-		return nil
-	})
-	if err := eg.Wait(); err != nil {
-		return nil, err
-	}
-	return updated, nil
-}
-
-func (s *service) verifySessionWarning(identity identity.Identity, flow verification.Flow, payload verification.SessionWarnPayload) (*verification.Flow, error) {
-	// Check that payload has all the required information
-	if err := validate.Check(payload); err != nil {
-		return nil, err
-	}
-	// Compare IdentityID to make sure user attempting to verify is the proper user
-	if flow.IdentityID != identity.ID {
-		return nil, errInvalidUser(flow.FlowID, identity.ID)
-	}
-	// Compare passwords and find contact concurrently
-	var eg errgroup.Group
-	var foundContact contact.Contact
-	eg.Go(func() error {
-		// Compare passwords
-		if err := s.cs.ComparePassword(flow.IdentityID, payload.Password); err != nil {
-			return err
-		}
-		return nil
-	})
-	eg.Go(func() error {
-		f, err := s.cos.Find(flow.ContactID.String())
-		if err != nil {
-			return err
-		}
-		foundContact = *f
-		return nil
-	})
-	if err := eg.Wait(); err != nil {
-		return nil, err
-	}
-	// Send email
-	if err := s.sendEmail(flow.FlowID, identity, foundContact.Value, false); err != nil {
-		return nil, err
-	}
-	// Update flow appropriately
-	flow.Form = nil
-	flow.Status = verification.LinkPending
-	updated, err := s.r.Update(flow)
-	if err != nil {
-		return nil, err
-	}
-	return updated, nil
-}
-
-func (s *service) sendEmail(flowID string, identity identity.Identity, to string, isNew bool) error {
+func (s *service) sendEmail(flow verification.Flow, identity identity.Identity, to string, newUser bool) error {
 	cfg := config.Get()
-	if isNew {
+	if newUser {
 		wd := email.WelcomeTemplateData{
 			ApplicationName: cfg.Name,
 			FirstName:       identity.FirstName,
-			VerificationURL: fmt.Sprintf("%s/%s/%s", cfg.Server.URL, cfg.Verification.URL, flowID),
+			VerificationURL: fmt.Sprintf("%s/%s/%s", cfg.Server.URL, cfg.Verification.URL, flow.ID),
 		}
 		if err := s.e.Send(to, email.Welcome, wd); err != nil {
 			return err
@@ -328,11 +199,11 @@ func (s *service) sendEmail(flowID string, identity identity.Identity, to string
 	td := email.VerificationTemplateData{
 		ApplicationName: cfg.Name,
 		FirstName:       identity.FirstName,
-		VerificationURL: fmt.Sprintf("%s/%s/%s", cfg.Server.URL, cfg.Verification.URL, flowID),
+		VerificationURL: fmt.Sprintf("%s/%s/%s", cfg.Server.URL, cfg.Verification.URL, flow.FlowID),
 	}
 	// Send Email
 	if err := s.e.Send(to, email.Verification, td); err != nil {
-		return errEmailSend()
+		return err
 	}
 	return nil
 }

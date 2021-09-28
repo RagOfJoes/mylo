@@ -3,6 +3,7 @@ package transport
 import (
 	"fmt"
 	"net/http"
+	"runtime"
 	"time"
 
 	"github.com/RagOfJoes/idp/flow/verification"
@@ -14,28 +15,43 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-const (
-	verificationFlowIDCookie string = "verificationFid"
-)
-
 var (
-	errNotAuthenticated error = transport.NewHttpClientError(http.StatusUnauthorized, "not_authenticated", "Not authenticated", nil)
-	errInvalidFlow            = func(src error, fid string, i identity.Identity) error {
-		return transport.NewHttpClientError(http.StatusNotFound, "verification_flowid_invalid", src.Error(), &map[string]interface{}{
-			"FlowID":   fid,
-			"Identity": i,
-		})
-	}
-	errInvalidContactID = func(i identity.Identity, p string) error {
-		return transport.NewHttpClientError(http.StatusBadRequest, "verification_payload_invalid", "Contact is either already verified or does not exist", &map[string]interface{}{
+	errInvalidContactID = func(src error, i identity.Identity, c string) error {
+		return transport.NewHttpClientError(src, http.StatusBadRequest, "Verification_InvalidContact", "Contact is either already verified or does not exist", map[string]interface{}{
 			"Identity":  i,
-			"ContactID": p,
+			"ContactID": c,
 		})
 	}
-	errInvalidPayload = func(i identity.Identity, fid string) error {
-		return transport.NewHttpClientError(http.StatusBadRequest, "verification_payload_invalid", "Invalid payload provided", &map[string]interface{}{
+	errInvalidContact = func(src error, i identity.Identity, c contact.Contact) error {
+		return transport.NewHttpClientError(src, http.StatusForbidden, "Verification_InvalidContact", "Contact is either already verified or does not exist", map[string]interface{}{
+			"Identity": i,
+			"Contact":  c,
+		})
+	}
+	errFailedCreate = func(src error, i identity.Identity, c contact.Contact) error {
+		_, file, line, _ := runtime.Caller(1)
+		return transport.NewHttpInternalError(src, file, line, "Verification_FailedCreate", "Failed to create verification flow. Please try again later", map[string]interface{}{
+			"Identity": i,
+			"Contact":  c,
+		})
+	}
+	errInvalidFlowID = func(src error, i identity.Identity, fid string) error {
+		return transport.NewHttpClientError(src, http.StatusNotFound, "Verification_InvalidFlow", src.Error(), map[string]interface{}{
 			"Identity": i,
 			"FlowID":   fid,
+		})
+	}
+	errInvalidPayload = func(src error, i identity.Identity, f verification.Flow) error {
+		return transport.NewHttpClientError(src, http.StatusBadRequest, "Verification_InvalidPayload", "Invalid payload provided", map[string]interface{}{
+			"Identity": i,
+			"Flow":     f,
+		})
+	}
+	errFailedVerify = func(src error, i identity.Identity, f verification.Flow, p interface{}) error {
+		return transport.NewHttpClientError(src, http.StatusInternalServerError, "Verification_FailedVerify", "Failed to process verification flow. Please try again later.", map[string]interface{}{
+			"Identity": i,
+			"Flow":     f,
+			"Payload":  p,
 		})
 	}
 )
@@ -63,15 +79,15 @@ func NewVerificationHttp(sm *session.Manager, s verification.Service, r *gin.Eng
 func (h *Http) initFlow() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		sess := transport.IsAuthenticated(c)
-		// Check if user is authenticated
+		// Check if user is not authenticated
 		if sess == nil {
-			c.Error(errNotAuthenticated)
+			c.Error(transport.ErrNotAuthenticated(nil, c.Request.URL.Path))
 			return
 		}
 		// Validate that payload required is provided
 		var dest verification.NewPayload
 		if err := c.ShouldBind(&dest); err != nil {
-			c.Error(errInvalidContactID(*sess.Identity, ""))
+			c.Error(errInvalidContactID(err, *sess.Identity, ""))
 			return
 		}
 		// Check if payload provided is actually a user's contact id
@@ -82,7 +98,7 @@ func (h *Http) initFlow() gin.HandlerFunc {
 			}
 		}
 		if foundContact.Verified {
-			c.Error(errInvalidContactID(*sess.Identity, dest.Contact))
+			c.Error(errInvalidContact(nil, *sess.Identity, foundContact))
 			return
 		}
 		// Retrieve request URL
@@ -93,40 +109,38 @@ func (h *Http) initFlow() gin.HandlerFunc {
 			fullURL = fmt.Sprintf("%s?%s", reqURL, reqQuery)
 		}
 		// Get proper status for new flow
-		// TODO: Create configuration value for flow's duration
 		stat := verification.LinkPending
-		if time.Until(sess.ExpiresAt).Minutes()+10 < (10 / 2) {
+		halfLife := sess.ExpiresAt.Sub(sess.AuthenticatedAt) / 2
+		if time.Since(sess.AuthenticatedAt) >= halfLife {
 			stat = verification.SessionWarn
 		}
 		// Create new flow
-		newFlow, err := h.s.New(*sess.Identity, foundContact, fullURL, stat)
+		newFlow, err := h.s.New(*sess.Identity, foundContact, fullURL, stat, false)
 		if err != nil {
-			c.Error(err)
+			c.Error(transport.GetHttpError(err, errFailedCreate(err, *sess.Identity, foundContact), HttpCodeMap))
 			return
 		}
 		// Respond
-		resp := transport.HttpResponse{
+		c.JSON(http.StatusOK, transport.HttpResponse{
 			Success: true,
 			Payload: newFlow,
-		}
-		c.JSON(http.StatusOK, resp)
+		})
 	}
 }
 
 func (h *Http) getFlow() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		// Check if user is authenticated
-		if transport.IsAuthenticated(c) == nil {
-			c.Error(errNotAuthenticated)
+		sess := transport.IsAuthenticated(c)
+		// Check if user is not authenticated
+		if sess == nil {
+			c.Error(transport.ErrNotAuthenticated(nil, c.Request.URL.Path))
 			return
 		}
 		// Validate flow id
 		fid := c.Param("flow_id")
-		// Get session
-		sess, _ := c.Value("sess").(*session.Session)
-		f, err := h.s.Find(fid, sess.IdentityID)
+		f, err := h.s.Find(fid, *sess.Identity)
 		if err != nil {
-			c.Error(errInvalidFlow(err, fid, *sess.Identity))
+			c.Error(transport.GetHttpError(err, errInvalidFlowID(err, *sess.Identity, fid), HttpCodeMap))
 			return
 		}
 		c.JSON(http.StatusOK, transport.HttpResponse{
@@ -141,27 +155,47 @@ func (h *Http) verifyFlow() gin.HandlerFunc {
 		sess := transport.IsAuthenticated(c)
 		// Check if user is authenticated
 		if sess == nil {
-			c.Error(errNotAuthenticated)
+			c.Error(transport.ErrNotAuthenticated(nil, c.Request.URL.Path))
 			return
 		}
-		// Validate flow id
+		// Retrieve flow id
 		fid := c.Param("flow_id")
-		var dest verification.SessionWarnPayload
-		pastHalf := time.Until(sess.ExpiresAt).Minutes()+10 < (10 / 2)
-		if pastHalf {
-			if err := c.ShouldBind(&dest); err != nil {
-				c.Error(errInvalidPayload(*sess.Identity, fid))
+		// Check if flow id provided is valid
+		f, err := h.s.Find(fid, *sess.Identity)
+		if err != nil {
+			c.Error(transport.GetHttpError(err, errInvalidFlowID(err, *sess.Identity, fid), HttpCodeMap))
+			return
+		}
+		// Require proper payload depending on status of flow
+		var res *verification.Flow
+		switch f.Status {
+		case verification.SessionWarn:
+			var psw verification.SessionWarnPayload
+			if err := c.ShouldBind(&psw); err != nil {
+				c.Error(errInvalidPayload(err, *sess.Identity, *f))
+			}
+			v, err := h.s.Verify(*f, *sess.Identity, psw)
+			if err != nil {
+				c.Error(transport.GetHttpError(err, errFailedVerify(err, *sess.Identity, *f, psw), HttpCodeMap))
 				return
 			}
+			res = v
+		default:
+			v, err := h.s.Verify(*f, *sess.Identity, nil)
+			if err != nil {
+				c.Error(transport.GetHttpError(err, errFailedVerify(err, *sess.Identity, *f, nil), HttpCodeMap))
+				return
+			}
+			res = v
 		}
-		v, err := h.s.Verify(fid, *sess.Identity, dest)
-		if err != nil {
-			c.Error(err)
+		// If for some reason we either haven't error'd out or flow has been left nil then just error out
+		if res == nil {
+			c.Error(errFailedVerify(nil, *sess.Identity, *f, nil))
 			return
 		}
 		c.JSON(http.StatusOK, transport.HttpResponse{
 			Success: true,
-			Payload: v,
+			Payload: res,
 		})
 	}
 }
