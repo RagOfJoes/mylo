@@ -11,6 +11,14 @@ import (
 	"github.com/nbutton23/zxcvbn-go"
 )
 
+var (
+	errFailedFind = func(src error, i uuid.UUID) error {
+		return internal.NewServiceClientError(src, "Credential_FailedFind", "Invalid identifier/password provided", map[string]interface{}{
+			"IdentityID": i,
+		})
+	}
+)
+
 type service struct {
 	cr credential.Repository
 }
@@ -31,13 +39,19 @@ func (s *service) CreatePassword(uid uuid.UUID, password string, identifiers []c
 	// Test password strength
 	passStrength := zxcvbn.PasswordStrength(password, ids)
 	if passStrength.Score <= cfg.Credential.MinimumScore {
-		return nil, internal.NewServiceClientError(nil, "credential_password_weak", "Password provided is too weak", nil)
+		return nil, internal.NewServiceClientError(nil, "Credential_WeakPassword", "Password provided is too weak", map[string]interface{}{
+			"IdentityID":  uid,
+			"Identifiers": identifiers,
+		})
 	}
 	// 3. Hash password
 	newPass, err := generateFromPassword(password)
 	if err != nil {
 		_, file, line, _ := runtime.Caller(1)
-		return nil, internal.NewServiceInternalError(file, line, "credential_password_fail", "Failed to generate a hashed password")
+		return nil, internal.NewServiceInternalError(err, file, line, "Credential_FailedPassword", "Failed to generate a hashed password", map[string]interface{}{
+			"IdentityID":  uid,
+			"Identifiers": identifiers,
+		})
 	}
 	credPass := credential.CredentialPassword{
 		HashedPassword: newPass,
@@ -45,7 +59,10 @@ func (s *service) CreatePassword(uid uuid.UUID, password string, identifiers []c
 	jsonPass, err := json.Marshal(credPass)
 	if err != nil {
 		_, file, line, _ := runtime.Caller(1)
-		return nil, internal.NewServiceInternalError(file, line, "credential_password_fail", "Failed to JSON encode hashed password")
+		return nil, internal.NewServiceInternalError(err, file, line, "Credential_FailedPassword", "Failed to JSON encode hashed password", map[string]interface{}{
+			"IdentityID":  uid,
+			"Identifiers": identifiers,
+		})
 	}
 	// 4. Build Credential
 	newCredential := credential.Credential{
@@ -57,7 +74,10 @@ func (s *service) CreatePassword(uid uuid.UUID, password string, identifiers []c
 	// 5. Create Credential in repository
 	ncp, err := s.cr.Create(newCredential)
 	if err != nil {
-		return nil, internal.NewServiceClientError(err, "credential_password_create", "Invalid email/username provided", nil)
+		return nil, internal.NewServiceClientError(err, "Credential_FailedCreate", "Invalid identifier(s)/password provided", map[string]interface{}{
+			"IdentityID":  uid,
+			"Identifiers": identifiers,
+		})
 	}
 	return ncp, nil
 }
@@ -65,20 +85,24 @@ func (s *service) CreatePassword(uid uuid.UUID, password string, identifiers []c
 func (s *service) ComparePassword(uid uuid.UUID, password string) error {
 	cred, err := s.cr.GetWithIdentityID(credential.Password, uid)
 	if err != nil {
-		return internal.NewServiceClientError(err, "invalid_identity", "Invalid email/username provided", nil)
+		return errFailedFind(err, uid)
 	}
 	var hashed credential.CredentialPassword
 	if err := json.Unmarshal([]byte(cred.Values), &hashed); err != nil {
 		_, file, line, _ := runtime.Caller(1)
-		return internal.NewServiceInternalError(file, line, "credential_password_fail", "Failed to decode password credential")
+		return internal.NewServiceInternalError(err, file, line, "Credential_FailedPassword", "Failed to decode password credentials", map[string]interface{}{
+			"IdentityID": uid,
+		})
 	}
 	match, err := comparePasswordAndHash(password, hashed.HashedPassword)
 	if err != nil {
 		_, file, line, _ := runtime.Caller(1)
-		return internal.NewServiceInternalError(file, line, "credential_password_fail", err.Error())
+		return internal.NewServiceInternalError(err, file, line, "Credential_FailedPassword", "Failed to compare password and hash", map[string]interface{}{
+			"IdentityID": uid,
+		})
 	}
 	if !match {
-		return internal.NewServiceClientError(err, "invalid_password", "Wrong password. Click on Forgot Password to reset it.", nil)
+		return errFailedFind(err, uid)
 	}
 	return nil
 }

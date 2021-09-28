@@ -13,8 +13,8 @@ import (
 )
 
 var (
-	ErrInvalidHash         = errors.New("the encoded hash is not in the correct format")
-	ErrIncompatibleVersion = errors.New("incompatible version of argon2")
+	errInvalidHash         = errors.New("the encoded hash is not in the correct format")
+	errIncompatibleVersion = errors.New("incompatible version of argon2")
 )
 
 func generateFromPassword(password string) (encodedHash string, err error) {
@@ -73,7 +73,7 @@ func comparePasswordAndHash(password string, encodedHash string) (match bool, er
 func decodeHash(encodedHash string) (p *config.Argon, salt, hash []byte, err error) {
 	vals := strings.Split(encodedHash, "$")
 	if len(vals) != 6 {
-		return nil, nil, nil, ErrInvalidHash
+		return nil, nil, nil, errInvalidHash
 	}
 
 	var version int
@@ -82,7 +82,7 @@ func decodeHash(encodedHash string) (p *config.Argon, salt, hash []byte, err err
 		return nil, nil, nil, err
 	}
 	if version != argon2.Version {
-		return nil, nil, nil, ErrIncompatibleVersion
+		return nil, nil, nil, errIncompatibleVersion
 	}
 
 	p = &config.Argon{}
