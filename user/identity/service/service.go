@@ -31,7 +31,10 @@ func NewIdentityService(ir identity.Repository) identity.Service {
 func (s *service) Create(i identity.Identity, username string, password string) (*identity.Identity, error) {
 	// 1. Check for profanity in username
 	if goaway.IsProfane(username) {
-		return nil, errInvalidUsername(nil)
+		return nil, internal.NewServiceClientError(nil, "Identity_FailedCreate", "Username must not contain any profanity", map[string]interface{}{
+			"Identity": i,
+			"Username": username,
+		})
 	}
 	// 2. Create Identity
 	builtUser := identity.Identity{
@@ -41,7 +44,10 @@ func (s *service) Create(i identity.Identity, username string, password string) 
 	}
 	newUser, err := s.ir.Create(builtUser)
 	if err != nil {
-		return nil, internal.NewServiceClientError(err, "identity_create_fail", "Invalid email/username provided", nil)
+		return nil, internal.NewServiceClientError(err, "Identity_FailedCreate", "Invalid identifier(s)/password provided", map[string]interface{}{
+			"Identity": i,
+			"Username": username,
+		})
 	}
 	// 3. Return new user
 	return newUser, nil
@@ -52,13 +58,17 @@ func (s *service) Find(i string) (*identity.Identity, error) {
 	if err == nil {
 		f, err := s.ir.Get(uid, false)
 		if err != nil {
-			return nil, errInvalidID(err)
+			return nil, internal.NewServiceClientError(err, "Identity_FailedFind", "Invalid identifier(s)/password provided", map[string]interface{}{
+				"IdentityID": i,
+			})
 		}
 		return f, nil
 	}
 	f, err := s.ir.GetIdentifier(i, false)
 	if err != nil {
-		return nil, errInvalidUsername(err)
+		return nil, internal.NewServiceClientError(err, "Identity_FailedFind", "Invalid identifier(s)/password provided", map[string]interface{}{
+			"Identifier": i,
+		})
 	}
 	return f, nil
 }
@@ -67,11 +77,16 @@ func (s *service) Find(i string) (*identity.Identity, error) {
 func (s *service) Delete(i string, perm bool) error {
 	id, err := uuid.FromString(i)
 	if err != nil {
-		return errInvalidID(err)
+		_, file, line, _ := runtime.Caller(1)
+		return internal.NewServiceInternalError(err, file, line, "Identity_FailedFind", "Invalid IdentityID provided", map[string]interface{}{
+			"IdentityID": i,
+		})
 	}
 	if err := s.ir.Delete(id, perm); err != nil {
 		_, file, line, _ := runtime.Caller(1)
-		return internal.NewServiceInternalError(file, line, "identity_delete_fail", "Failed to delete Identity")
+		return internal.NewServiceInternalError(err, file, line, "Identity_FailedDelete", "Failed to delete identity", map[string]interface{}{
+			"IdentityID": i,
+		})
 	}
 	return nil
 }

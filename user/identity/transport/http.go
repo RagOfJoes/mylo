@@ -8,10 +8,6 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-var (
-	errNotAuthenticated error = transport.NewHttpClientError(http.StatusUnauthorized, "not_authenticated", "Not authenticated", nil)
-)
-
 type Http struct {
 	sm *session.Manager
 }
@@ -27,7 +23,7 @@ func (h *Http) me() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		sess := transport.IsAuthenticated(c)
 		if sess == nil {
-			c.Error(errNotAuthenticated)
+			c.Error(transport.ErrNotAuthenticated(nil, c.Request.URL.Path))
 			return
 		}
 
