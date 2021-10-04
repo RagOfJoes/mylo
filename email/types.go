@@ -1,5 +1,7 @@
 package email
 
+import "github.com/RagOfJoes/idp/user/identity"
+
 // Base types
 //
 
@@ -13,27 +15,8 @@ const (
 )
 
 type Client interface {
-	// Send sends email with given template and arbitrary data to fill out
-	// data
-	Send(to string, template Template, data interface{}) error
-}
-
-// Template Data structures
-//
-
-// WelcomeTemplateData defines the data that will be used to populate
-// the welcome email
-type WelcomeTemplateData struct {
-	FirstName       string `json:"FirstName"`
-	VerificationURL string `json:"VerificationURL"`
-	ApplicationName string `json:"ApplicationName"`
-}
-
-// VerificationTemplateData
-type VerificationTemplateData struct {
-	FirstName       string `json:"FirstName"`
-	VerificationURL string `json:"VerificationURL"`
-	ApplicationName string `json:"ApplicationName"`
+	SendWelcome(to string, user identity.Identity, verificationURL string) error
+	SendVerification(to string, user identity.Identity, verificationURL string) error
 }
 
 // A majority of Sendgrid's types
