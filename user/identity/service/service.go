@@ -7,6 +7,7 @@ import (
 	"github.com/RagOfJoes/idp/user/identity"
 	goaway "github.com/TwinProduction/go-away"
 	"github.com/gofrs/uuid"
+	"golang.org/x/sync/errgroup"
 )
 
 var (
@@ -29,14 +30,39 @@ func NewIdentityService(ir identity.Repository) identity.Service {
 }
 
 func (s *service) Create(i identity.Identity, username string, password string) (*identity.Identity, error) {
-	// 1. Check for profanity in username
+	// Check for profanity in username
 	if goaway.IsProfane(username) {
 		return nil, internal.NewServiceClientError(nil, "Identity_FailedCreate", "Username must not contain any profanity", map[string]interface{}{
 			"Identity": i,
 			"Username": username,
 		})
 	}
-	// 2. Create Identity
+	// Check if email and username already exist
+	var eg errgroup.Group
+	var f *identity.Identity
+	eg.Go(func() error {
+		fi, err := s.ir.GetIdentifier(username, false)
+		if err != nil {
+			return err
+		}
+		f = fi
+		return nil
+	})
+	eg.Go(func() error {
+		fi, err := s.ir.GetIdentifier(i.Email, false)
+		if err != nil {
+			return err
+		}
+		f = fi
+		return err
+	})
+	if eg.Wait(); f != nil {
+		return nil, internal.NewServiceClientError(nil, "Identity_FailedCreate", "Invalid identifier(s)/password provided", map[string]interface{}{
+			"Identity": i,
+			"Username": username,
+		})
+	}
+	// Instantiate new identity
 	builtUser := identity.Identity{
 		FirstName: i.FirstName,
 		LastName:  i.LastName,
@@ -55,7 +81,7 @@ func (s *service) Create(i identity.Identity, username string, password string) 
 
 func (s *service) Find(i string) (*identity.Identity, error) {
 	uid, err := uuid.FromString(i)
-	if err == nil {
+	if err == nil && uid != uuid.Nil {
 		f, err := s.ir.Get(uid, false)
 		if err != nil {
 			return nil, internal.NewServiceClientError(err, "Identity_FailedFind", "Invalid identifier(s)/password provided", map[string]interface{}{
