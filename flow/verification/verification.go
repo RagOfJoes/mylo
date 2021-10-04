@@ -45,12 +45,6 @@ type Flow struct {
 	IdentityID uuid.UUID `json:"-" gorm:"index;not null" validate:"required"`
 }
 
-// NewPayload defines the data required to initiate the flow
-type NewPayload struct {
-	// Contact should be the id of whatever contact the user wants to verify
-	Contact string `json:"contact" form:"contact" binding:"required" validate:"required"`
-}
-
 // SessionWarnPayload defines the form that will be rendered
 // when a User's session has passed half of the expiration time
 type SessionWarnPayload struct {
