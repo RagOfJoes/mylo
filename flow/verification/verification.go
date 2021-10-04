@@ -77,7 +77,7 @@ type Repository interface {
 // Service defines
 type Service interface {
 	// New creates a new verification flow
-	New(identity identity.Identity, contact contact.Contact, requestURL string, status Status, newUser bool) (*Flow, error)
+	New(identity identity.Identity, contact contact.Contact, requestURL string, status Status) (*Flow, error)
 	// Find does exactly that
 	Find(flowID string, identity identity.Identity) (*Flow, error)
 	// Verify either completes the flow or moves to next status

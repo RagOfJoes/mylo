@@ -5,7 +5,6 @@ import (
 	"runtime"
 	"time"
 
-	"github.com/RagOfJoes/idp/email"
 	"github.com/RagOfJoes/idp/flow/verification"
 	"github.com/RagOfJoes/idp/internal"
 	"github.com/RagOfJoes/idp/internal/config"
@@ -65,16 +64,14 @@ var (
 )
 
 type service struct {
-	e   email.Client
 	r   verification.Repository
 	cos contact.Service
 	cs  credential.Service
 	is  identity.Service
 }
 
-func NewVerificationService(e email.Client, r verification.Repository, cos contact.Service, cs credential.Service, is identity.Service) verification.Service {
+func NewVerificationService(r verification.Repository, cos contact.Service, cs credential.Service, is identity.Service) verification.Service {
 	return &service{
-		e:   e,
 		r:   r,
 		cos: cos,
 		cs:  cs,
@@ -82,7 +79,7 @@ func NewVerificationService(e email.Client, r verification.Repository, cos conta
 	}
 }
 
-func (s *service) New(identity identity.Identity, contact contact.Contact, requestURL string, status verification.Status, newUser bool) (*verification.Flow, error) {
+func (s *service) New(identity identity.Identity, contact contact.Contact, requestURL string, status verification.Status) (*verification.Flow, error) {
 	// Make sure contact provided belongs to identity
 	flag := false
 	for _, c := range identity.Contacts {
@@ -134,12 +131,6 @@ func (s *service) New(identity identity.Identity, contact contact.Contact, reque
 			"Flow":     newFlow,
 		})
 	}
-	// If status is LinkPending then send email
-	if newFlow.Status == verification.LinkPending {
-		if err := s.sendEmail(*newFlow, identity, contact.Value, newUser); err != nil {
-			return nil, err
-		}
-	}
 	return newFlow, nil
 }
 
@@ -181,29 +172,4 @@ func (s *service) Verify(flow verification.Flow, identity identity.Identity, pay
 	}
 	// If the status provided is invalid
 	return nil, errInvalidFlow(nil, identity, flow)
-}
-
-func (s *service) sendEmail(flow verification.Flow, identity identity.Identity, to string, newUser bool) error {
-	cfg := config.Get()
-	if newUser {
-		wd := email.WelcomeTemplateData{
-			ApplicationName: cfg.Name,
-			FirstName:       identity.FirstName,
-			VerificationURL: fmt.Sprintf("%s/%s/%s", cfg.Server.URL, cfg.Verification.URL, flow.ID),
-		}
-		if err := s.e.Send(to, email.Welcome, wd); err != nil {
-			return err
-		}
-		return nil
-	}
-	td := email.VerificationTemplateData{
-		ApplicationName: cfg.Name,
-		FirstName:       identity.FirstName,
-		VerificationURL: fmt.Sprintf("%s/%s/%s", cfg.Server.URL, cfg.Verification.URL, flow.FlowID),
-	}
-	// Send Email
-	if err := s.e.Send(to, email.Verification, td); err != nil {
-		return err
-	}
-	return nil
 }

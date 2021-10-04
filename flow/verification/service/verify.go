@@ -63,30 +63,12 @@ func (s *service) verifySessionWarning(flow verification.Flow, identity identity
 	if err := validate.Check(payload); err != nil {
 		return nil, errInvalidSessionWarn(err, identity, flow, payload)
 	}
-	// Compare passwords and find contact concurrently
-	var eg errgroup.Group
-	var foundContact contact.Contact
-	eg.Go(func() error {
-		// Compare passwords
-		if err := s.cs.ComparePassword(flow.IdentityID, payload.Password); err != nil {
-			return err
-		}
-		return nil
-	})
-	eg.Go(func() error {
-		f, err := s.cos.Find(flow.ContactID.String())
-		if err != nil {
-			return err
-		}
-		foundContact = *f
-		return nil
-	})
-	if err := eg.Wait(); err != nil {
-		return nil, err
-	}
-	// Send email
-	if err := s.sendEmail(flow, identity, foundContact.Value, false); err != nil {
-		return nil, err
+	// Compare passwords
+	if err := s.cs.ComparePassword(flow.IdentityID, payload.Password); err != nil {
+		return nil, internal.NewServiceClientError(err, "Verification_InvalidSessionWarnPayload", "Invalid password provided", map[string]interface{}{
+			"Identity": identity,
+			"Flow":     flow,
+		})
 	}
 	// Update flow appropriately
 	flow.Form = nil
