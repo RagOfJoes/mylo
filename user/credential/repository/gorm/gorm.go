@@ -26,7 +26,7 @@ func (g *gormCredentialRepository) Create(c credential.Credential) (*credential.
 
 func (g *gormCredentialRepository) GetWithIdentifier(t credential.CredentialType, i string) (*credential.Credential, error) {
 	var c credential.Credential
-	if err := g.DB.Preload("Identifiers", "value = ?", i).First(&c, "type = ?", t).Error; err != nil {
+	if err := g.DB.Preload("Identifiers", "LOWER(value) = LOWER(?)", i).First(&c, "type = ?", t).Error; err != nil {
 		return nil, err
 	}
 	return &c, nil

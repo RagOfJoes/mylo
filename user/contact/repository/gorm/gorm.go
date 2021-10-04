@@ -40,7 +40,7 @@ func (g *gormContactRepository) Get(i uuid.UUID) (*contact.Contact, error) {
 
 func (g *gormContactRepository) GetByValue(s string) (*contact.Contact, error) {
 	var v contact.Contact
-	if err := g.DB.First(&v, "value = ?", s).Error; err != nil {
+	if err := g.DB.First(&v, "LOWER(v) = LOWER(?)", s).Error; err != nil {
 		return nil, err
 	}
 	return &v, nil
