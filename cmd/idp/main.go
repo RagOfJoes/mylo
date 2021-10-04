@@ -58,7 +58,7 @@ func main() {
 	is := identityService.NewIdentityService(ir)
 	// Flow Services
 	// These will essentially stitch all other services together
-	vs := verificationService.NewVerificationService(email, vr, cos, cs, is)
+	vs := verificationService.NewVerificationService(vr, cos, cs, is)
 	rs := registrationService.NewRegistrationService(rr, cos, cs, is)
 	ls := loginService.NewLoginService(lr, cos, cs, is)
 
@@ -86,8 +86,8 @@ func main() {
 
 	// Attach routes
 	identityTransport.NewIdentityHttp(sessionManager, router)
-	verificationTransport.NewVerificationHttp(sessionManager, vs, router)
-	registrationTransport.NewRegistrationHttp(rs, vs, sessionManager, router)
+	verificationTransport.NewVerificationHttp(email, sessionManager, vs, router)
+	registrationTransport.NewRegistrationHttp(email, sessionManager, rs, vs, router)
 	loginTransport.NewLoginHttp(ls, sessionManager, router)
 
 	// Start HTTP server
