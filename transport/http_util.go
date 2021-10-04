@@ -9,7 +9,11 @@ import (
 
 // IsAuthenticated checks context for identity
 func IsAuthenticated(ctx *gin.Context) *session.Session {
-	session, ok := ctx.Value("sess").(*session.Session)
+	v, ok := ctx.Get("sess")
+	if !ok || v == nil {
+		return nil
+	}
+	session, ok := v.(*session.Session)
 	if !ok || session == nil {
 		return nil
 	}
