@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"runtime"
 
+	"github.com/RagOfJoes/idp/email"
 	"github.com/RagOfJoes/idp/flow/registration"
 	"github.com/RagOfJoes/idp/flow/verification"
 	"github.com/RagOfJoes/idp/internal/config"
@@ -39,14 +40,16 @@ var (
 )
 
 type Http struct {
+	e  email.Client
 	sm *session.Manager
 	s  registration.Service
 	vs verification.Service
 }
 
-func NewRegistrationHttp(s registration.Service, vs verification.Service, sm *session.Manager, r *gin.Engine) {
+func NewRegistrationHttp(e email.Client, sm *session.Manager, s registration.Service, vs verification.Service, r *gin.Engine) {
 	cfg := config.Get()
 	h := &Http{
+		e:  e,
 		s:  s,
 		vs: vs,
 		sm: sm,
@@ -136,10 +139,16 @@ func (h *Http) submitFlow() gin.HandlerFunc {
 			c.Error(transport.GetHttpError(err, errFailedSubmit(err, *f, dest), HttpCodeMap))
 			return
 		}
-		// Create a new verification flow
+		// Create a new verification flow in the background
 		go func(user identity.Identity) {
-			_, err := h.vs.New(user, user.Contacts[0], fmt.Sprintf("/registration/%s", fid), verification.LinkPending, true)
+			vf, err := h.vs.New(user, user.Contacts[0], fmt.Sprintf("/registration/%s", fid), verification.LinkPending)
 			if err != nil {
+				// TODO: Capture error
+				log.Print(err)
+			}
+			cfg := config.Get()
+			url := fmt.Sprintf("%s/%s/%s", cfg.Server.URL, cfg.Verification.URL, vf.FlowID)
+			if err := h.e.SendWelcome(user.Contacts[0].Value, user, url); err != nil {
 				// TODO: Capture error
 				log.Print(err)
 			}

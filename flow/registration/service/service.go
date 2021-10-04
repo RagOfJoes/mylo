@@ -151,8 +151,9 @@ func (s *service) Submit(flow registration.Flow, payload registration.Payload) (
 				Value: payload.Username,
 			},
 		})
+		// TODO: Determine whether or not we should wrap this error
 		if err != nil {
-			return errInvalidPayload(err, flow, payload)
+			return err
 		}
 		// Append new credential to instantited identity
 		newUser.Credentials = append(newUser.Credentials, *cr)
@@ -164,5 +165,9 @@ func (s *service) Submit(flow registration.Flow, payload registration.Payload) (
 		s.is.Delete(newUser.ID.String(), true)
 		return nil, err
 	}
+	// Delete service in background
+	go func() {
+		s.r.Delete(flow.ID)
+	}()
 	return newUser, nil
 }
