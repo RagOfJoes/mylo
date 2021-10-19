@@ -1,20 +1,7 @@
 package email
 
 import (
-	"fmt"
-	"runtime"
-
-	"github.com/RagOfJoes/idp/internal"
 	"github.com/RagOfJoes/idp/internal/config"
-)
-
-var (
-	errInvalidTemplate = func(src error, template, to string) error {
-		_, file, line, _ := runtime.Caller(1)
-		return internal.NewServiceInternalError(src, file, line, "Email_InvalidTemplate", fmt.Sprintf("Invalid %s template data provided", template), map[string]interface{}{
-			"Email": to,
-		})
-	}
 )
 
 type client struct {
@@ -26,15 +13,19 @@ type client struct {
 	welcomeID string
 	// Template ID for Verification template
 	verificationID string
+	// Template ID for Recovery template
+	recoveryID string
 }
 
 func New() Client {
 	cfg := config.Get()
 	return &client{
-		appName:        cfg.Name,
-		apiKey:         cfg.SendGrid.APIKey,
+		appName: cfg.Name,
+		apiKey:  cfg.SendGrid.APIKey,
+
 		welcomeID:      cfg.SendGrid.WelcomeTemplateID,
 		verificationID: cfg.SendGrid.VerificationTemplateID,
+		recoveryID:     cfg.SendGrid.RecoveryTemplateID,
 		sender: Email{
 			Name:  cfg.SendGrid.SenderName,
 			Email: cfg.SendGrid.SenderEmail,
