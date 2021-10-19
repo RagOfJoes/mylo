@@ -7,6 +7,9 @@ import (
 	loginGorm "github.com/RagOfJoes/idp/flow/login/repository/gorm"
 	loginService "github.com/RagOfJoes/idp/flow/login/service"
 	loginTransport "github.com/RagOfJoes/idp/flow/login/transport"
+	recoveryGorm "github.com/RagOfJoes/idp/flow/recovery/repository/gorm"
+	recoveryService "github.com/RagOfJoes/idp/flow/recovery/service"
+	recoveryTransport "github.com/RagOfJoes/idp/flow/recovery/transport"
 	registrationGorm "github.com/RagOfJoes/idp/flow/registration/repository/gorm"
 	registrationService "github.com/RagOfJoes/idp/flow/registration/service"
 	registrationTransport "github.com/RagOfJoes/idp/flow/registration/transport"
@@ -46,21 +49,23 @@ func main() {
 	email := email.New()
 
 	// Setup repositories
-	cor := contactGorm.NewGormContactRepository(db)
-	cr := credentialGorm.NewGormCredentialRepository(db)
-	ir := identityGorm.NewGormUserRepository(db)
-	vr := verificationGorm.NewGormVerificationRepository(db)
-	rr := registrationGorm.NewGormRegistrationRepository(db)
-	lr := loginGorm.NewGormLoginRepository(db)
+	contactRepository := contactGorm.NewGormContactRepository(db)
+	credentialRepository := credentialGorm.NewGormCredentialRepository(db)
+	identityRepository := identityGorm.NewGormUserRepository(db)
+	recoveryRepository := recoveryGorm.NewGormRecoveryRepository(db)
+	verificationRepository := verificationGorm.NewGormVerificationRepository(db)
+	registrationRepository := registrationGorm.NewGormRegistrationRepository(db)
+	loginRepository := loginGorm.NewGormLoginRepository(db)
 	// Setup services
-	cos := contactService.NewContactService(cor)
-	cs := credentialService.NewCredentialService(cr)
-	is := identityService.NewIdentityService(ir)
+	contactService := contactService.NewContactService(contactRepository)
+	credentialService := credentialService.NewCredentialService(credentialRepository)
+	identityService := identityService.NewIdentityService(identityRepository)
 	// Flow Services
 	// These will essentially stitch all other services together
-	vs := verificationService.NewVerificationService(vr, cos, cs, is)
-	rs := registrationService.NewRegistrationService(rr, cos, cs, is)
-	ls := loginService.NewLoginService(lr, cos, cs, is)
+	verificationService := verificationService.NewVerificationService(verificationRepository, contactService, credentialService, identityService)
+	registrationService := registrationService.NewRegistrationService(registrationRepository, contactService, credentialService, identityService)
+	loginService := loginService.NewLoginService(loginRepository, contactService, credentialService, identityService)
+	recoveryService := recoveryService.NewRecoveryService(recoveryRepository, credentialService, contactService)
 
 	// Create session manager
 	sessionManager, err := session.NewManager()
@@ -82,13 +87,14 @@ func main() {
 	if cfg.Server.RPS > 0 {
 		router.Use(transport.RateLimiterMiddleware(cfg.Server.RPS))
 	}
-	router.Use(transport.SecurityMiddleware(), session.AuthMiddleware(sessionManager, is), transport.ErrorMiddleware())
+	router.Use(transport.SecurityMiddleware(), session.AuthMiddleware(sessionManager, identityService), transport.ErrorMiddleware())
 
 	// Attach routes
 	identityTransport.NewIdentityHttp(sessionManager, router)
-	verificationTransport.NewVerificationHttp(email, sessionManager, vs, router)
-	registrationTransport.NewRegistrationHttp(email, sessionManager, rs, vs, router)
-	loginTransport.NewLoginHttp(ls, sessionManager, router)
+	verificationTransport.NewVerificationHttp(email, sessionManager, verificationService, router)
+	registrationTransport.NewRegistrationHttp(email, sessionManager, registrationService, verificationService, router)
+	loginTransport.NewLoginHttp(loginService, sessionManager, router)
+	recoveryTransport.NewRecoveryHttp(email, recoveryService, identityService, router)
 
 	// Start HTTP server
 	if err := transport.RunHttp(sessionManager.LoadAndSave(router)); err != nil {
