@@ -7,18 +7,26 @@ import (
 	"github.com/gofrs/uuid"
 )
 
+// Type defines the type of contact
 type Type string
-type Method string
+
+const (
+	// Default means that this contact can be used as a valid identifier
+	// pair with a credential to log user in
+	Default Type = "Default"
+	// Backup means that this contact can be used to recover account
+	Backup Type = "Backup"
+)
+
+// State defines the current state of verification for this particular contact
 type State string
 
 const (
-	Default Type = "default"
-	Backup  Type = "backup"
-
-	Email Method = "email"
-
-	Sent      State = "sent"
-	Completed State = "completed"
+	// Sent means the verification link was sent to an out of band communication provider
+	// ie: Email
+	Sent State = "Sent"
+	// Completed means the contact has successfully been verified
+	Completed State = "Completed"
 )
 
 type Contact struct {
@@ -28,24 +36,16 @@ type Contact struct {
 	// VerifiedAt is the verification date
 	VerifiedAt *time.Time `json:"verified_at" gorm:"default:null"`
 
-	// Type is the type of address.
+	// Type defines the type of contact
 	//
 	// Any type besides default will be ignored
-	// if state != "completed" or if verified is false.
-	//
-	// enum{ "default", "backup" }
-	//
-	// "default" means this is just a contact.
-	// "backup" means this address is also a backup so user's
-	// can use it for recovering accounts.
+	// if state != "Complete" or if verified is false.
 	Type Type `json:"type" gorm:"index;not null;default:default"`
-	// Method is the delivery method for verification
-	Method Method `json:"method" gorm:"default:email" validate:"oneof='email'"`
-	// State is the current state of the verification process.
+	// State defines the current state of verification for this particular contact
 	//
-	// "sent" means the verification link, email, sms, etc.
+	// "Sent" means the verification link, email, sms, etc.
 	// was sent.
-	// "completed" means the verification process been fulfilled
+	// "Completed" means the verification process been fulfilled
 	// by the user.
 	State State `json:"state" gorm:"not null" validate:"oneof='sent' 'completed'"`
 	// Value is the actual value to be verified. This can
@@ -73,9 +73,9 @@ type Repository interface {
 }
 
 type Service interface {
-	// Find finds a single contact based on
-	Find(string) (*Contact, error)
+	// Find finds a single contact based on the value provided
+	Find(value string) (*Contact, error)
 	// Add adds a single or a collection of contacts. This should ideally
 	// merge new and old Contact that a user owns
-	Add(...Contact) ([]Contact, error)
+	Add(contacts ...Contact) ([]Contact, error)
 }
