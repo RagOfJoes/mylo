@@ -10,15 +10,6 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
-var (
-	errInvalidID = func(src error) error {
-		return internal.NewServiceClientError(src, "identity_id_invalid", "Invalid id provided", nil)
-	}
-	errInvalidUsername = func(src error) error {
-		return internal.NewServiceClientError(src, "identity_username_invalid", "Invalid username provided. Username is either already taken or contains invalid characters", nil)
-	}
-)
-
 type service struct {
 	ir identity.Repository
 }
