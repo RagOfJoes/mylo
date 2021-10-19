@@ -54,14 +54,27 @@ type CredentialOIDC struct {
 }
 
 type Repository interface {
-	Create(Credential) (*Credential, error)
-	GetWithIdentifier(CredentialType, string) (*Credential, error)
-	GetWithIdentityID(CredentialType, uuid.UUID) (*Credential, error)
-	Update(Credential) (*Credential, error)
-	Delete(uuid.UUID) error
+	// Create creates a new credential
+	Create(newCredential Credential) (*Credential, error)
+	// GetIdentifier retrieves an identifier
+	GetIdentifier(identifier string) (*Identifier, error)
+	// GetWithIdentifier retrieves a credential with an identifier
+	GetWithIdentifier(credentialType CredentialType, identifier string) (*Credential, error)
+	// GetWithIdentityID retrieves a credential with an identity id
+	GetWithIdentityID(credentialType CredentialType, identityID uuid.UUID) (*Credential, error)
+	// Update updates a credential
+	Update(updateCredential Credential) (*Credential, error)
+	// Delete deletes a credential via id
+	Delete(id uuid.UUID) error
 }
 
 type Service interface {
-	CreatePassword(uid uuid.UUID, password string, identifiers []Identifier) (*Credential, error)
-	ComparePassword(uid uuid.UUID, password string) error
+	// CreatePassword creates a password credential
+	CreatePassword(identityID uuid.UUID, password string, identifiers []Identifier) (*Credential, error)
+	// ComparePassword compares a password credential
+	ComparePassword(identityID uuid.UUID, password string) error
+	// FindPasswordWithIdentifier finds a password with an identifier
+	FindPasswordWithIdentifier(Identifier string) (*Credential, error)
+	// UpdatePassword updates a password credential
+	UpdatePassword(identityID uuid.UUID, newPassword string) (*Credential, error)
 }
