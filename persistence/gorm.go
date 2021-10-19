@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/RagOfJoes/idp/flow/login"
+	"github.com/RagOfJoes/idp/flow/recovery"
 	"github.com/RagOfJoes/idp/flow/registration"
 	"github.com/RagOfJoes/idp/flow/verification"
 	"github.com/RagOfJoes/idp/internal/config"
@@ -74,6 +75,7 @@ func migrate(db *gorm.DB) error {
 		&credential.Credential{},
 
 		&login.Flow{},
+		&recovery.Flow{},
 		&verification.Flow{},
 		&registration.Flow{},
 	)
