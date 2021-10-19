@@ -24,12 +24,24 @@ func (g *gormCredentialRepository) Create(c credential.Credential) (*credential.
 	return &n, nil
 }
 
-func (g *gormCredentialRepository) GetWithIdentifier(t credential.CredentialType, i string) (*credential.Credential, error) {
-	var c credential.Credential
-	if err := g.DB.Preload("Identifiers", "LOWER(value) = LOWER(?)", i).First(&c, "type = ?", t).Error; err != nil {
+func (g *gormCredentialRepository) GetIdentifier(id string) (*credential.Identifier, error) {
+	var i credential.Identifier
+	if err := g.DB.First(&i, "LOWER(value) = LOWER(?)", id).Error; err != nil {
 		return nil, err
 	}
-	return &c, nil
+	return &i, nil
+}
+
+func (g *gormCredentialRepository) GetWithIdentifier(t credential.CredentialType, i string) (*credential.Credential, error) {
+	var password credential.Credential
+	var identifier credential.Identifier
+	if err := g.DB.First(&identifier, "LOWER(value) = LOWER(?)", i).Error; err != nil {
+		return nil, err
+	}
+	if err := g.DB.First(&password, "id = ?", identifier.CredentialID).Error; err != nil {
+		return nil, err
+	}
+	return &password, nil
 }
 
 func (g *gormCredentialRepository) GetWithIdentityID(t credential.CredentialType, i uuid.UUID) (*credential.Credential, error) {
@@ -43,9 +55,6 @@ func (g *gormCredentialRepository) GetWithIdentityID(t credential.CredentialType
 
 func (g *gormCredentialRepository) Update(n credential.Credential) (*credential.Credential, error) {
 	r := n
-	if err := g.DB.Unscoped().Where("credential_id = ?", r.ID).Delete(credential.Identifier{}).Error; err != nil {
-		return nil, err
-	}
 	// Update Credential
 	if err := g.DB.Save(&r).Error; err != nil {
 		return nil, err
