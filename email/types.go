@@ -5,18 +5,10 @@ import "github.com/RagOfJoes/idp/user/identity"
 // Base types
 //
 
-// Template is the custom type that defines valid templates
-type Template string
-
-const (
-	Welcome      Template = "Welcome"
-	Verification Template = "Verification"
-	Recovery     Template = "Recovery"
-)
-
 type Client interface {
 	SendWelcome(to string, user identity.Identity, verificationURL string) error
 	SendVerification(to string, user identity.Identity, verificationURL string) error
+	SendRecovery(to []string, recoveryURL string) error
 }
 
 // A majority of Sendgrid's types
