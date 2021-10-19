@@ -7,4 +7,5 @@ type SendGrid struct {
 
 	WelcomeTemplateID      string `validate:"required"`
 	VerificationTemplateID string `validate:"required"`
+	RecoveryTemplateID     string `validate:"required"`
 }

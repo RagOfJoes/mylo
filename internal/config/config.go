@@ -30,6 +30,7 @@ type Configuration struct {
 	//
 
 	Login        Login
+	Recovery     Recovery
 	Registration Registration
 	Verification Verification
 
@@ -62,6 +63,10 @@ func Setup(filename string, filetype string, filepath string) error {
 
 		Login: Login{
 			URL:      "login",
+			Lifetime: time.Minute * 10,
+		},
+		Recovery: Recovery{
+			URL:      "recovery",
 			Lifetime: time.Minute * 10,
 		},
 		Registration: Registration{
