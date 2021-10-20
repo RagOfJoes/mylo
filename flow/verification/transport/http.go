@@ -108,13 +108,13 @@ func (h *Http) initFlow() gin.HandlerFunc {
 			fullURL = fmt.Sprintf("%s?%s", reqURL, reqQuery)
 		}
 		// Get proper status for new flow
-		// stat := verification.LinkPending
+		stat := verification.LinkPending
 		halfLife := sess.ExpiresAt.Sub(sess.AuthenticatedAt) / 2
 		if time.Since(sess.AuthenticatedAt) >= halfLife {
-			// stat = verification.SessionWarn
+			stat = verification.SessionWarn
 		}
 		// Create new flow
-		newFlow, err := h.s.New(*sess.Identity, foundContact, fullURL, verification.SessionWarn)
+		newFlow, err := h.s.New(*sess.Identity, foundContact, fullURL, stat)
 		if err != nil {
 			c.Error(transport.GetHttpError(err, errFailedCreate(err, *sess.Identity, foundContact), HttpCodeMap))
 			return
