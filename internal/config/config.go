@@ -120,6 +120,7 @@ func Setup(filename string, filetype string, filepath string) error {
 	viper.SetConfigName(filename)
 	viper.SetConfigType(filetype)
 	viper.AddConfigPath(filepath)
+	viper.AddConfigPath(".")
 
 	if err := viper.ReadInConfig(); err != nil {
 		return err

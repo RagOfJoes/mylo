@@ -31,7 +31,7 @@ import (
 
 func init() {
 	// Load configuration
-	if err := config.Setup("config", "yaml", "."); err != nil {
+	if err := config.Setup("config", "yaml", "/home/raggy/"); err != nil {
 		log.Fatal(err)
 	}
 }
