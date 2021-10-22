@@ -21,6 +21,11 @@ var (
 			"FlowID": f,
 		})
 	}
+	errInvalidRecoverID = func(src error, r string) error {
+		return internal.NewServiceClientError(src, "Recovery_InvalidFlow", "Invalid or expired flow", map[string]interface{}{
+			"RecoverID": r,
+		})
+	}
 	errInvalidFlow = func(src error, f recovery.Flow) error {
 		return internal.NewServiceClientError(src, "Recovery_InvalidFlow", "Invalid or expired flow", map[string]interface{}{
 			"Flow": f,
@@ -75,6 +80,10 @@ func (s *service) New(requestURL string) (*recovery.Flow, error) {
 	if err != nil {
 		return nil, errNanoIDGen(err)
 	}
+	recoverID, err := nanoid.New()
+	if err != nil {
+		return nil, errNanoIDGen(err)
+	}
 	cfg := config.Get()
 	action := fmt.Sprintf("%s/%s/%s", cfg.Server.URL, cfg.Recovery.URL, flowID)
 	expire := time.Now().Add(cfg.Recovery.Lifetime)
@@ -82,6 +91,7 @@ func (s *service) New(requestURL string) (*recovery.Flow, error) {
 	flow := recovery.Flow{
 		FlowID:     flowID,
 		ExpiresAt:  expire,
+		RecoverID:  recoverID,
 		RequestURL: requestURL,
 		Status:     recovery.IdentifierPending,
 
@@ -97,18 +107,32 @@ func (s *service) New(requestURL string) (*recovery.Flow, error) {
 	return newFlow, nil
 }
 
-func (s *service) Find(flowID string) (*recovery.Flow, error) {
-	if flowID == "" {
-		return nil, errInvalidFlowID(nil, flowID)
+func (s *service) Find(id string) (*recovery.Flow, error) {
+	if id == "" {
+		return nil, errInvalidFlowID(nil, id)
 	}
 	// Try to get Flow
-	flow, err := s.r.GetByFlowID(flowID)
-	// Check for error or empty flow
-	if err != nil || flow == nil {
-		return nil, errInvalidFlowID(err, flowID)
+	flow, err := s.r.GetByFlowIDOrRecoverID(id)
+	if flow == nil || err != nil {
+		return nil, errInvalidFlowID(err, id)
 	}
-	// Check for expired flow or if flow belongs to user
-	if flow.Status == recovery.Fail || flow.ExpiresAt.Before(time.Now()) {
+	// Check for expired flow
+	if flow.ExpiresAt.Before(time.Now()) {
+		return nil, errInvalidFlow(nil, *flow)
+	}
+	// Make sure Status and ID provided are correct
+	switch flow.Status {
+	case recovery.IdentifierPending:
+		if flow.FlowID != id {
+			return nil, errInvalidFlowID(nil, id)
+		}
+	case recovery.LinkPending:
+		if flow.RecoverID != id {
+			return nil, errInvalidRecoverID(nil, id)
+		}
+	case recovery.Fail:
+		return nil, errInvalidFlow(nil, *flow)
+	case recovery.Success:
 		return nil, errInvalidFlow(nil, *flow)
 	}
 	return flow, nil
@@ -147,15 +171,9 @@ func (s *service) SubmitIdentifier(flow recovery.Flow, payload recovery.Identifi
 	updateFlow.Status = recovery.LinkPending
 	updateFlow.IdentityID = &credential.IdentityID
 	// Generate new form
-	action := fmt.Sprintf("%s/%s/%s", cfg.Server.URL, cfg.Recovery.URL, flow.FlowID)
+	action := fmt.Sprintf("%s/%s/%s", cfg.Server.URL, cfg.Recovery.URL, flow.RecoverID)
 	form := generateRecoveryForm(action)
 	updateFlow.Form = &form
-	// Update FlowID to ensure that the intended user received the recovery request from their preferred out-of-band communication service. IE: email or phone
-	newFlowID, err := nanoid.New()
-	if err != nil {
-		return nil, errFailedUpdate(err, flow, updateFlow)
-	}
-	updateFlow.FlowID = newFlowID
 	updatedFlow, err := s.r.Update(updateFlow)
 	if err != nil {
 		return nil, errFailedUpdate(err, flow, updateFlow)
