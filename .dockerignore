@@ -1,0 +1,11 @@
+docs
+.releaser
+.github
+.circleci
+tmp
+scripts
+.idea
+.git/
+./config.yml
+.bin/
+Makefile
