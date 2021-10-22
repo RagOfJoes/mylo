@@ -4,7 +4,7 @@ services:
     container_name: "idp-dev-db"
     build:
       context: ./docker/
-      dockerfile: pg.dockerfile
+      dockerfile: Dockerfile.pg
     env_file:
       - pg.env
     ports:
@@ -16,9 +16,7 @@ services:
     container_name: "idp-dev"
     build:
       context: .
-      dockerfile: docker/dev.dockerfile
-    env_file:
-      - .env
+      dockerfile: docker/Dockerfile.dev
     ports:
       - 8080:8080
     volumes:
