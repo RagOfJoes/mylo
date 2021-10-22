@@ -25,6 +25,11 @@ var (
 			"FlowID": f,
 		})
 	}
+	errInvalidRecoverID = func(src error, r string) error {
+		return transport.NewHttpClientError(src, http.StatusNotFound, "Recovery_InvalidFlow", "Invalid or expired flow", map[string]interface{}{
+			"RecoverID": r,
+		})
+	}
 	errInvalidFlow = func(src error, f recovery.Flow) error {
 		return transport.NewHttpClientError(src, http.StatusNotFound, "Recovery_InvalidFlow", "Invalid or expired flow", map[string]interface{}{
 			"Flow": f,
@@ -54,8 +59,8 @@ func NewRecoveryHttp(e email.Client, s recovery.Service, is identity.Service, r 
 	group := r.Group(fmt.Sprintf("/%s", cfg.Recovery.URL))
 	{
 		group.GET("/", h.initFlow())
-		group.GET("/:flow_id", h.getFlow())
-		group.POST("/:flow_id", h.submitFlow())
+		group.GET("/:id", h.getFlow())
+		group.POST("/:id", h.submitFlow())
 	}
 }
 
@@ -93,12 +98,12 @@ func (h *Http) getFlow() gin.HandlerFunc {
 			c.Error(transport.ErrAlreadyAuthenticated(nil, c.Request.URL.Path, *sess.Identity))
 			return
 		}
-		// Retrieve FlowID
-		flowID := c.Param("flow_id")
+		// Retrieve FlowID or RecoverID
+		id := c.Param("id")
 		// Retrieve Flow
-		flow, err := h.s.Find(flowID)
+		flow, err := h.s.Find(id)
 		if err != nil {
-			c.Error(transport.GetHttpError(err, errInvalidFlowID(err, flowID), HttpCodeMap))
+			c.Error(transport.GetHttpError(err, errInvalidFlowID(err, id), HttpCodeMap))
 			return
 		}
 		c.JSON(http.StatusOK, transport.HttpResponse{
@@ -115,12 +120,12 @@ func (h *Http) submitFlow() gin.HandlerFunc {
 			c.Error(transport.ErrAlreadyAuthenticated(nil, c.Request.URL.Path, *sess.Identity))
 			return
 		}
-		// Retrieve FlowID
-		flowID := c.Param("flow_id")
+		// Retrieve FlowID or RecoverID
+		id := c.Param("id")
 		// Retrieve Flow
-		flow, err := h.s.Find(flowID)
+		flow, err := h.s.Find(id)
 		if err != nil {
-			c.Error(transport.GetHttpError(err, errInvalidFlowID(err, flowID), HttpCodeMap))
+			c.Error(transport.GetHttpError(err, errInvalidFlowID(err, id), HttpCodeMap))
 			return
 		}
 
@@ -151,7 +156,7 @@ func (h *Http) submitFlow() gin.HandlerFunc {
 				}), HttpCodeMap))
 				return
 			}
-
+			// Send email in the background
 			go func(flow recovery.Flow) {
 				if submittedFlow.Status == recovery.LinkPending {
 					var emails []string

@@ -30,9 +30,9 @@ func (g *gormRecoveryRepository) Get(id uuid.UUID) (*recovery.Flow, error) {
 	return &flow, nil
 }
 
-func (g *gormRecoveryRepository) GetByFlowID(flowID string) (*recovery.Flow, error) {
+func (g *gormRecoveryRepository) GetByFlowIDOrRecoverID(id string) (*recovery.Flow, error) {
 	var flow recovery.Flow
-	if err := g.DB.First(&flow, "flow_id = ?", flowID).Error; err != nil {
+	if err := g.DB.Where("flow_id = ?", id).Or("recover_id = ?", id).Find(&flow).Error; err != nil {
 		return nil, err
 	}
 	return &flow, nil

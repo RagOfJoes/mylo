@@ -31,6 +31,8 @@ type Flow struct {
 	Status Status `json:"status" gorm:"not null" validate:"required"`
 	// FlowID defines the unique identifier that user's will use to access the flow
 	FlowID string `json:"-" gorm:"not null;uniqueIndex" validate:"required"`
+	// RecoverID defines the unique identifier that user's will use to complete the flow
+	RecoverID string `json:"-" gorm:"not null;uniqueIndex" validate:"required"`
 	// ExpiresAt defines the time when this flow will no longer be valid
 	ExpiresAt time.Time `json:"expires_at" gorm:"index;not null" validate:"required"`
 
@@ -38,7 +40,7 @@ type Flow struct {
 	Form *form.Form `json:"form,omitempty" gorm:"type:json;default:null"`
 
 	// IdentityID defines the user that this flow belongs to
-	IdentityID *uuid.UUID `json:"-" gorm:"index" validate:"required_if=Status LinkPending"`
+	IdentityID *uuid.UUID `json:"-" gorm:"type:uuid;index" validate:"required_if=Status LinkPending"`
 }
 
 // IdentifierPayload defines the payload required to move to `LinkPending`
@@ -58,8 +60,8 @@ type Repository interface {
 	Create(newFlow Flow) (*Flow, error)
 	// Get retrieves a flow via ID
 	Get(id uuid.UUID) (*Flow, error)
-	// GetByFlowID retrieves a flow via FlowID
-	GetByFlowID(flowID string) (*Flow, error)
+	// GetByFlowIDOrRecoverID retrieves a flow via FlowID or RecoverID
+	GetByFlowIDOrRecoverID(id string) (*Flow, error)
 	// GetByIdentityID retrieves a flow via identity ID
 	GetByIdentityID(identityID uuid.UUID) (*Flow, error)
 	// Update updates a flow
@@ -72,8 +74,8 @@ type Repository interface {
 type Service interface {
 	// New creates a new flow
 	New(requestURL string) (*Flow, error)
-	// Find does exactly that
-	Find(flowID string) (*Flow, error)
+	// Find retrieves flow via FlowID or RecoverID
+	Find(id string) (*Flow, error)
 	// SubmitIdentifier requires the `IdentifierPending` status and the `IdentifierPayload` to move the flow to the next step. An email should also be sent to all backup contacts in transport implementation
 	SubmitIdentifier(flow Flow, payload IdentifierPayload) (*Flow, error)
 	// SubmitUpdatePassword completes the flow
