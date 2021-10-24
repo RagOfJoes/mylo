@@ -141,16 +141,18 @@ func (h *Http) submitFlow() gin.HandlerFunc {
 		}
 		// Create a new verification flow in the background
 		go func(user identity.Identity) {
-			vf, err := h.vs.New(user, user.Contacts[0], fmt.Sprintf("/registration/%s", fid), verification.LinkPending)
+			vf, err := h.vs.NewDefault(user, user.Contacts[0], fmt.Sprintf("/registration/%s", fid))
 			if err != nil {
 				// TODO: Capture error
 				log.Print(err)
+				return
 			}
 			cfg := config.Get()
 			url := fmt.Sprintf("%s/%s/%s", cfg.Server.URL, cfg.Verification.URL, vf.FlowID)
 			if err := h.e.SendWelcome(user.Contacts[0].Value, user, url); err != nil {
 				// TODO: Capture error
 				log.Print(err)
+				return
 			}
 		}(*user)
 
