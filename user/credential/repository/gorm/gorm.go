@@ -2,10 +2,8 @@ package gorm
 
 import (
 	"github.com/RagOfJoes/idp/user/credential"
-	"github.com/RagOfJoes/idp/user/identity"
 	"github.com/gofrs/uuid"
 	"gorm.io/gorm"
-	"gorm.io/gorm/clause"
 )
 
 type gormCredentialRepository struct {
@@ -17,19 +15,19 @@ func NewGormCredentialRepository(d *gorm.DB) credential.Repository {
 }
 
 func (g *gormCredentialRepository) Create(c credential.Credential) (*credential.Credential, error) {
-	n := c
-	if err := g.DB.Create(&n).Error; err != nil {
+	clone := c
+	if err := g.DB.Create(&clone).Error; err != nil {
 		return nil, err
 	}
-	return &n, nil
+	return &clone, nil
 }
 
 func (g *gormCredentialRepository) GetIdentifier(id string) (*credential.Identifier, error) {
-	var i credential.Identifier
-	if err := g.DB.First(&i, "LOWER(value) = LOWER(?)", id).Error; err != nil {
+	var identifier credential.Identifier
+	if err := g.DB.Preload("Identifiers").First(&identifier, "LOWER(value) = LOWER(?)", id).Error; err != nil {
 		return nil, err
 	}
-	return &i, nil
+	return &identifier, nil
 }
 
 func (g *gormCredentialRepository) GetWithIdentifier(t credential.CredentialType, i string) (*credential.Credential, error) {
@@ -38,35 +36,34 @@ func (g *gormCredentialRepository) GetWithIdentifier(t credential.CredentialType
 	if err := g.DB.First(&identifier, "LOWER(value) = LOWER(?)", i).Error; err != nil {
 		return nil, err
 	}
-	if err := g.DB.First(&password, "id = ?", identifier.CredentialID).Error; err != nil {
+	if err := g.DB.Preload("Identifiers").First(&password, "id = ?", identifier.CredentialID).Error; err != nil {
 		return nil, err
 	}
 	return &password, nil
 }
 
-func (g *gormCredentialRepository) GetWithIdentityID(t credential.CredentialType, i uuid.UUID) (*credential.Credential, error) {
-	str := i.String()
-	var c credential.Credential
-	if err := g.DB.First(&c, "type = ? AND identity_id = ?", t, str).Error; err != nil {
+func (g *gormCredentialRepository) GetWithIdentityID(credentialType credential.CredentialType, identityID uuid.UUID) (*credential.Credential, error) {
+	var found credential.Credential
+	if err := g.DB.Preload("Identifiers").First(&found, "type = ? AND identity_id = ?", credentialType, identityID).Error; err != nil {
 		return nil, err
 	}
-	return &c, nil
+	return &found, nil
 }
 
-func (g *gormCredentialRepository) Update(n credential.Credential) (*credential.Credential, error) {
-	r := n
+func (g *gormCredentialRepository) Update(update credential.Credential) (*credential.Credential, error) {
+	updated := update
 	// Update Credential
-	if err := g.DB.Save(&r).Error; err != nil {
+	if err := g.DB.Save(&updated).Error; err != nil {
 		return nil, err
 	}
-	return &r, nil
+	return &updated, nil
 }
 
-func (g *gormCredentialRepository) Delete(i uuid.UUID) error {
-	if err := g.DB.Where("credential_id = ?", i).Delete(credential.Identifier{}).Error; err != nil && err != gorm.ErrRecordNotFound {
+func (g *gormCredentialRepository) Delete(credentialID uuid.UUID) error {
+	if err := g.DB.Where("credential_id = ?", credentialID).Delete(credential.Identifier{}).Error; err != nil && err != gorm.ErrRecordNotFound {
 		return err
 	}
-	if err := g.DB.Select(clause.Associations).Delete(identity.Identity{}, "id = ?", i).Error; err != nil && err != gorm.ErrRecordNotFound {
+	if err := g.DB.Where("id = ?", credentialID).Delete(credential.Credential{}).Error; err != nil && err != gorm.ErrRecordNotFound {
 		return err
 	}
 	return nil
