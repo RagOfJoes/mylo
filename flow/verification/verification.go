@@ -33,6 +33,8 @@ type Flow struct {
 	Status Status `json:"status" gorm:"not null" validate:"required"`
 	// FlowID defines the unique identifier that user's will use to access the flow
 	FlowID string `json:"-" gorm:"not null;uniqueIndex" validate:"required"`
+	// VerifyID defines the unique identifier that user's will use to complete the flow
+	VerifyID string `json:"-" gorm:"not null;uniqueIndex" validate:"required"`
 	// ExpiresAt defines the time when this flow will no longer be valid
 	ExpiresAt time.Time `json:"expires_at" gorm:"index;not null" validate:"required"`
 
@@ -40,9 +42,9 @@ type Flow struct {
 	Form *form.Form `json:"form,omitempty" gorm:"type:json;default:null"`
 
 	// ContactID defines the contact that this flow belongs to
-	ContactID uuid.UUID `json:"-" gorm:"index;not null" validate:"required"`
+	ContactID uuid.UUID `json:"-" gorm:"type:uuid;index;not null" validate:"required"`
 	// IdentityID defines the user that this flow belongs to
-	IdentityID uuid.UUID `json:"-" gorm:"index;not null" validate:"required"`
+	IdentityID uuid.UUID `json:"-" gorm:"type:uuid;index;not null" validate:"required"`
 }
 
 // SessionWarnPayload defines the form that will be rendered
@@ -54,14 +56,14 @@ type SessionWarnPayload struct {
 
 // Repository defines
 type Repository interface {
-	// Create creates a new Verification
+	// Create creates a new flow
 	Create(newFlow Flow) (*Flow, error)
 	// Get retrieves a flow via ID
 	Get(id uuid.UUID) (*Flow, error)
-	// GetByFlowID retrieves a flow via FlowID
-	GetByFlowID(flowID string) (*Flow, error)
-	// GetByContact retrieves a flow via ContactID
-	GetByContact(contactID uuid.UUID) (*Flow, error)
+	// GetByFlowIDOrVerifyID retrieves a flow via FlowID
+	GetByFlowIDOrVerifyID(id string) (*Flow, error)
+	// GetByContactID retrieves a flow via ContactID
+	GetByContactID(contactID uuid.UUID) (*Flow, error)
 	// Update updates a flow
 	Update(updateFlow Flow) (*Flow, error)
 	// Delete deletes a flow via ID
@@ -70,12 +72,17 @@ type Repository interface {
 
 // Service defines
 type Service interface {
-	// New creates a new verification flow
-	New(identity identity.Identity, contact contact.Contact, requestURL string, status Status) (*Flow, error)
+	// NewDefault creates a new flow with a Status of LinkPending
+	NewDefault(identity identity.Identity, contact contact.Contact, requestURL string) (*Flow, error)
+	// NewSessionWarn creates a new flow with a Status of SessionWarn. This should be called when User's session
+	// has passed its half-life
+	NewSessionWarn(identity identity.Identity, contact contact.Contact, requestURL string) (*Flow, error)
 	// Find does exactly that
 	Find(flowID string, identity identity.Identity) (*Flow, error)
+	// SubmitSessionWarn requires the `SessionWarn` status and the `SessionWarnPayload` to move the flow to the next step. On success, the transport should send an email to selected contact
+	SubmitSessionWarn(flow Flow, identity identity.Identity, payload SessionWarnPayload) (*Flow, error)
 	// Verify either completes the flow or moves to next status
-	Verify(flow Flow, identity identity.Identity, payload interface{}) (*Flow, error)
+	Verify(flow Flow, identity identity.Identity) (*Flow, error)
 }
 
 // TableName overrides GORM's table name
