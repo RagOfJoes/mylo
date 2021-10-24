@@ -25,8 +25,8 @@ type Credential struct {
 	//		- sub: 9s988s...
 	Values string `gorm:"not null;type:json" validate:"required"`
 
-	IdentityID  uuid.UUID    `gorm:"index;not null" validate:"required,uuid4"`
-	Identifiers []Identifier `gorm:"constraint:OnDelete:CASCADE"`
+	IdentityID  uuid.UUID `gorm:"index;not null" validate:"required,uuid4"`
+	Identifiers []Identifier
 }
 
 // CredentialType defines a Credential Type

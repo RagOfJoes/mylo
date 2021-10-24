@@ -3,6 +3,7 @@ package service
 import (
 	"encoding/json"
 	"runtime"
+	"time"
 
 	"github.com/RagOfJoes/idp/internal"
 	"github.com/RagOfJoes/idp/internal/config"
@@ -23,6 +24,7 @@ var (
 			"Identifiers": identifiers,
 		})
 	}
+	// Internal Errors
 	errFailedGeneratePassword = func(src error, i uuid.UUID, identifiers []credential.Identifier) error {
 		_, file, line, _ := runtime.Caller(1)
 		return internal.NewServiceInternalError(src, file, line, "Credential_FailedPassword", "Failed to generate a hashed password", map[string]interface{}{
@@ -48,7 +50,13 @@ var (
 			"IdentityID":  i,
 			"Identifiers": ids,
 		})
-
+	}
+	errFailedUpdate = func(src error, i uuid.UUID, uc credential.Credential) error {
+		_, file, line, _ := runtime.Caller(1)
+		return internal.NewServiceInternalError(src, file, line, "Credential_FailedUpdate", "Failed to update credential", map[string]interface{}{
+			"IdentityID":        i,
+			"UpdatedCredential": uc,
+		})
 	}
 )
 
@@ -179,17 +187,20 @@ func (s *service) UpdatePassword(uid uuid.UUID, newPassword string) (*credential
 	if err != nil {
 		return nil, errFailedEncodePassword(err, uid, cred.Identifiers)
 	}
-	// Build Credential
+	// Rebuild Credential
 	uc := *cred
+	updatedAt := time.Now()
+	uc.UpdatedAt = &updatedAt
 	uc.Values = string(jsonPass[:])
-	// Update password
-	updated, err := s.cr.Update(uc)
+	uc.Identifiers = cred.Identifiers
+	// Delete previous password credential
+	if err := s.cr.Delete(cred.ID); err != nil {
+		return nil, errFailedUpdate(err, uid, uc)
+	}
+	// Create new
+	updated, err := s.cr.Create(uc)
 	if err != nil {
-		_, file, line, _ := runtime.Caller(1)
-		return nil, internal.NewServiceInternalError(err, file, line, "Credential_FailedUpdate", "Failed to update credential", map[string]interface{}{
-			"IdentityID":        uid,
-			"UpdatedCredential": uc,
-		})
+		return nil, errFailedUpdate(err, uid, uc)
 	}
 	return updated, nil
 }
