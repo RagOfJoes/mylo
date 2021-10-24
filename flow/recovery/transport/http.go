@@ -25,11 +25,6 @@ var (
 			"FlowID": f,
 		})
 	}
-	errInvalidRecoverID = func(src error, r string) error {
-		return transport.NewHttpClientError(src, http.StatusNotFound, "Recovery_InvalidFlow", "Invalid or expired flow", map[string]interface{}{
-			"RecoverID": r,
-		})
-	}
 	errInvalidFlow = func(src error, f recovery.Flow) error {
 		return transport.NewHttpClientError(src, http.StatusNotFound, "Recovery_InvalidFlow", "Invalid or expired flow", map[string]interface{}{
 			"Flow": f,
@@ -71,15 +66,10 @@ func (h *Http) initFlow() gin.HandlerFunc {
 			c.Error(transport.ErrAlreadyAuthenticated(nil, c.Request.URL.Path, *sess.Identity))
 			return
 		}
-		// Retrieve request URL
-		reqURL := c.Request.URL.Path
-		reqQuery := c.Request.URL.Query().Encode()
-		fullURL := reqURL
-		if len(reqQuery) > 0 {
-			fullURL = fmt.Sprintf("%s?%s", reqURL, reqQuery)
-		}
+
+		requestURL := transport.RequestURL(c.Request)
 		// Create new flow
-		newFlow, err := h.s.New(fullURL)
+		newFlow, err := h.s.New(requestURL)
 		if err != nil {
 			c.Error(transport.GetHttpError(err, errFailedCreate(err), HttpCodeMap))
 			return

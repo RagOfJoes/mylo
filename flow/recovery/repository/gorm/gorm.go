@@ -55,7 +55,7 @@ func (g *gormRecoveryRepository) Update(updateFlow recovery.Flow) (*recovery.Flo
 }
 
 func (g *gormRecoveryRepository) Delete(id uuid.UUID) error {
-	if err := g.DB.Where("id = ?", id).Delete(recovery.Flow{}).Error; err != nil {
+	if err := g.DB.Where("id = ?", id).Delete(recovery.Flow{}).Error; err != nil && err != gorm.ErrRecordNotFound {
 		return err
 	}
 	return nil
