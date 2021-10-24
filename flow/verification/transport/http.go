@@ -75,8 +75,8 @@ func NewVerificationHttp(e email.Client, sm *session.Manager, s verification.Ser
 	group := r.Group(fmt.Sprintf("/%s", cfg.Verification.URL))
 	{
 		group.GET("/:contact_id", h.initFlow())
-		group.GET("/retrieve/:flow_id", h.getFlow())
-		group.POST("/:flow_id", h.verifyFlow())
+		group.GET("/retrieve/:id", h.getFlow())
+		group.POST("/:id", h.verifyFlow())
 	}
 }
 
@@ -89,48 +89,45 @@ func (h *Http) initFlow() gin.HandlerFunc {
 			return
 		}
 		// Check if contact provided actually belongs to the user
-		cid := c.Param("contact_id")
-		// Check if payload provided is actually a user's contact id
+		contactID := c.Param("contact_id")
 		var foundContact contact.Contact
-		for _, c := range sess.Contacts {
-			if c.ID.String() == cid {
-				foundContact = c
-			}
+		if got := getContact(*sess.Identity, contactID); got != nil {
+			foundContact = *got
+		} else {
+			c.Error(errInvalidContactID(nil, *sess.Identity, contactID))
+			return
 		}
-		if foundContact.Verified {
-			c.Error(errInvalidContact(nil, *sess.Identity, foundContact))
-		}
-		// Retrieve request URL
-		reqURL := c.Request.URL.Path
-		reqQuery := c.Request.URL.Query().Encode()
-		fullURL := reqURL
-		if len(reqQuery) > 0 {
-			fullURL = fmt.Sprintf("%s?%s", reqURL, reqQuery)
-		}
-		// Get proper status for new flow
-		stat := verification.LinkPending
+
+		requestURL := transport.RequestURL(c.Request)
+		// Check if session has passed its half-life
 		halfLife := sess.ExpiresAt.Sub(sess.AuthenticatedAt) / 2
 		if time.Since(sess.AuthenticatedAt) >= halfLife {
-			stat = verification.SessionWarn
+			newFlow, err := h.s.NewSessionWarn(*sess.Identity, foundContact, requestURL)
+			if err != nil {
+				c.Error(transport.GetHttpError(err, errFailedCreate(err, *sess.Identity, foundContact), HttpCodeMap))
+				return
+			}
+			c.JSON(http.StatusOK, transport.HttpResponse{
+				Success: true,
+				Payload: newFlow,
+			})
+			return
 		}
+
 		// Create new flow
-		newFlow, err := h.s.New(*sess.Identity, foundContact, fullURL, stat)
+		newFlow, err := h.s.NewDefault(*sess.Identity, foundContact, requestURL)
 		if err != nil {
 			c.Error(transport.GetHttpError(err, errFailedCreate(err, *sess.Identity, foundContact), HttpCodeMap))
 			return
 		}
 		// Send email in the background
-		go func(i identity.Identity, f verification.Flow, c contact.Contact) {
-			if newFlow.Status == verification.LinkPending {
-				cfg := config.Get()
-				url := fmt.Sprintf("%s/%s/%s", cfg.Server.URL, cfg.Verification.URL, f.FlowID)
-				// TODO: Capture error here
-				if err := h.e.SendVerification(c.Value, i, url); err != nil {
-					log.Print("Failed to send verification email", err)
-				}
+		go func(identity identity.Identity, flow verification.Flow, contact contact.Contact) {
+			// TODO: Capture error here
+			if err := h.sendEmail(identity, flow, contact); err != nil {
+				log.Print("Failed to send verification email: ", err)
 			}
 		}(*sess.Identity, *newFlow, foundContact)
-		// Respond
+
 		c.JSON(http.StatusOK, transport.HttpResponse{
 			Success: true,
 			Payload: newFlow,
@@ -146,16 +143,16 @@ func (h *Http) getFlow() gin.HandlerFunc {
 			c.Error(transport.ErrNotAuthenticated(nil, c.Request.URL.Path))
 			return
 		}
-		// Validate flow id
-		fid := c.Param("flow_id")
-		f, err := h.s.Find(fid, *sess.Identity)
+		// Retrieve FlowID or VerifyID
+		id := c.Param("id")
+		flow, err := h.s.Find(id, *sess.Identity)
 		if err != nil {
-			c.Error(transport.GetHttpError(err, errInvalidFlowID(err, *sess.Identity, fid), HttpCodeMap))
+			c.Error(transport.GetHttpError(err, errInvalidFlowID(err, *sess.Identity, id), HttpCodeMap))
 			return
 		}
 		c.JSON(http.StatusOK, transport.HttpResponse{
 			Success: true,
-			Payload: f,
+			Payload: flow,
 		})
 	}
 }
@@ -168,64 +165,79 @@ func (h *Http) verifyFlow() gin.HandlerFunc {
 			c.Error(transport.ErrNotAuthenticated(nil, c.Request.URL.Path))
 			return
 		}
-		// Retrieve flow id
-		fid := c.Param("flow_id")
-		// Check if flow id provided is valid
-		f, err := h.s.Find(fid, *sess.Identity)
+		// Retrieve FlowID or VerifyID
+		id := c.Param("id")
+		// Retrieve flow
+		flow, err := h.s.Find(id, *sess.Identity)
 		if err != nil {
-			c.Error(transport.GetHttpError(err, errInvalidFlowID(err, *sess.Identity, fid), HttpCodeMap))
+			c.Error(transport.GetHttpError(err, errInvalidFlowID(err, *sess.Identity, id), HttpCodeMap))
 			return
 		}
-		// Require proper payload depending on status of flow
-		var res *verification.Flow
-		switch f.Status {
+
+		switch flow.Status {
 		case verification.SessionWarn:
-			var psw verification.SessionWarnPayload
-			if err := c.ShouldBind(&psw); err != nil {
-				c.Error(errInvalidPayload(err, *sess.Identity, *f))
+			var payload verification.SessionWarnPayload
+			if err := c.ShouldBind(&payload); err != nil {
+				c.Error(errInvalidPayload(err, *sess.Identity, *flow))
 			}
-			v, err := h.s.Verify(*f, *sess.Identity, psw)
+			submittedFlow, err := h.s.SubmitSessionWarn(*flow, *sess.Identity, payload)
 			if err != nil {
-				c.Error(transport.GetHttpError(err, errFailedVerify(err, *sess.Identity, *f, psw), HttpCodeMap))
+				c.Error(transport.GetHttpError(err, errFailedVerify(err, *sess.Identity, *flow, payload), HttpCodeMap))
 				return
 			}
-			res = v
+
 			// If status was updated then send email in the background
 			go func(i identity.Identity, f verification.Flow) {
-				if v.Status == verification.LinkPending {
+				if submittedFlow.Status == verification.LinkPending {
 					var foundContact contact.Contact
-					for _, c := range sess.Contacts {
-						if c.ID.String() == f.ContactID.String() {
-							foundContact = c
-						}
-					}
-					if foundContact.Verified {
+					if got := getContact(*sess.Identity, flow.ContactID.String()); got != nil {
+						foundContact = *got
+					} else {
+						// TODO: Capture error here
 						return
 					}
-					cfg := config.Get()
-					url := fmt.Sprintf("%s/%s/%s", cfg.Server.URL, cfg.Verification.URL, v.FlowID)
+
 					// TODO: Capture error here
-					if err := h.e.SendVerification(foundContact.Value, i, url); err != nil {
-						log.Print("Failed to send verification email", err)
+					if err := h.sendEmail(i, f, foundContact); err != nil {
+						log.Print("Failed to send verification email: ", err)
 					}
 				}
-			}(*sess.Identity, *v)
-		default:
-			v, err := h.s.Verify(*f, *sess.Identity, nil)
-			if err != nil {
-				c.Error(transport.GetHttpError(err, errFailedVerify(err, *sess.Identity, *f, nil), HttpCodeMap))
-				return
-			}
-			res = v
+			}(*sess.Identity, *submittedFlow)
+
+			c.JSON(http.StatusOK, transport.HttpResponse{
+				Success: true,
+				Payload: submittedFlow,
+			})
+			return
 		}
-		// If for some reason we either haven't error'd out or flow has been left nil then just error out
-		if res == nil {
-			c.Error(errFailedVerify(nil, *sess.Identity, *f, nil))
+
+		verifiedFlow, err := h.s.Verify(*flow, *sess.Identity)
+		if err != nil {
+			c.Error(transport.GetHttpError(err, errFailedVerify(err, *sess.Identity, *flow, nil), HttpCodeMap))
 			return
 		}
 		c.JSON(http.StatusOK, transport.HttpResponse{
 			Success: true,
-			Payload: res,
+			Payload: verifiedFlow,
 		})
 	}
+}
+
+func getContact(identity identity.Identity, contactID string) *contact.Contact {
+	var foundContact *contact.Contact
+	for _, c := range identity.Contacts {
+		if c.ID.String() == contactID {
+			foundContact = &c
+		}
+	}
+	if foundContact != nil && foundContact.Verified {
+		return nil
+	}
+	return foundContact
+}
+
+func (h *Http) sendEmail(identity identity.Identity, flow verification.Flow, contact contact.Contact) error {
+	cfg := config.Get()
+	url := fmt.Sprintf("%s/%s/%s", cfg.Server.URL, cfg.Verification.URL, flow.VerifyID)
+	return h.e.SendVerification(contact.Value, identity, url)
 }
