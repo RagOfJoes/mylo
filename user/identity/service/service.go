@@ -5,7 +5,7 @@ import (
 
 	"github.com/RagOfJoes/idp/internal"
 	"github.com/RagOfJoes/idp/user/identity"
-	goaway "github.com/TwinProduction/go-away"
+	goaway "github.com/TwiN/go-away"
 	"github.com/gofrs/uuid"
 	"golang.org/x/sync/errgroup"
 )

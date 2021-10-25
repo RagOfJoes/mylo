@@ -41,8 +41,9 @@ github.com/BurntSushi/toml v0.3.1/go.mod h1:xHWCNGjB5oqiDr8zfno3MHue2Ht5sIBksp03
 github.com/BurntSushi/xgb v0.0.0-20160522181843-27f122750802/go.mod h1:IVnqGOEym/WlBOVXweHU+Q+/VP0lqqI8lqeDx9IjBqo=
 github.com/Masterminds/semver/v3 v3.1.1 h1:hLg3sBzpNErnxhQtUy/mmLR2I9foDujNK030IGemrRc=
 github.com/Masterminds/semver/v3 v3.1.1/go.mod h1:VPu/7SZ7ePZ3QOrcuXROw5FAcLl4a0cBrbBpGY/8hQs=
-github.com/TwinProduction/go-away v1.2.1 h1:37XV/QwT2164vXOFK4BoQdS7ZutI1ZTJDF/RX8N1Eho=
-github.com/TwinProduction/go-away v1.2.1/go.mod h1:i71zZbAiz6EiEQ6mtOV5mBYWwMP1Ndaaslrno8hYNhY=
+github.com/OneOfOne/xxhash v1.2.2/go.mod h1:HSdplMjZKSmBqAxg5vPj2TmRDmfkzw+cTzAElWljhcU=
+github.com/TwiN/go-away v1.4.1 h1:rMgxtGGXsi3Yr0MEe+sJAj/0G0bQPHczdDqyG2Fja7o=
+github.com/TwiN/go-away v1.4.1/go.mod h1:cQt5vCHAcyP9CzAh6ORZ9eJXWg4VTWjwTyDI5hB3sn0=
 github.com/alexedwards/scs/v2 v2.4.0 h1:XfnMamKnvp1muJVNr1WzikQTclopsBXWZtzz0NBjOK0=
 github.com/alexedwards/scs/v2 v2.4.0/go.mod h1:ToaROZxyKukJKT/xLcVQAChi5k6+Pn1Gvmdl7h3RRj8=
 github.com/andres-erbsen/clock v0.0.0-20160526145045-9e14626cd129 h1:MzBOUgng9orim59UnfUTLRjMpd09C5uEVQ6RPGeCaVI=
