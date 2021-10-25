@@ -3,7 +3,7 @@ module github.com/RagOfJoes/idp
 go 1.17
 
 require (
-	github.com/TwinProduction/go-away v1.2.1
+	github.com/TwiN/go-away v1.4.1
 	github.com/alexedwards/scs/v2 v2.4.0
 	github.com/gin-gonic/gin v1.7.4
 	github.com/go-playground/validator/v10 v10.9.0
