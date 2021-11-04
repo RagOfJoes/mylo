@@ -10,7 +10,7 @@ import (
 // Identity defines the base Identity model
 type Identity struct {
 	internal.BaseSoftDelete
-	Avatar    string `json:"avatar" gorm:"size:1024;" validate:"url,min=1,max=1024"`
+	Avatar    string `json:"avatar" gorm:"size:1024;" validate:"max=1024"`
 	FirstName string `json:"first_name" gorm:"size:64" validate:"max=64,alphanumunicode"`
 	LastName  string `json:"last_name" gorm:"size:64" validate:"max=64,alphanumunicode"`
 	// Email is the primary email that will be used for account
@@ -18,7 +18,7 @@ type Identity struct {
 	Email string `json:"email" gorm:"uniqueIndex;not null;" validate:"email,required"`
 
 	Credentials []credential.Credential `json:"-"`
-	Contacts    []contact.Contact       `json:"-"`
+	Contacts    []contact.Contact       `json:"contacts"`
 }
 
 // Repository defines an interface that allows
