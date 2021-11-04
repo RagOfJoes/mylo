@@ -9,6 +9,7 @@ import (
 	"github.com/RagOfJoes/idp/flow/registration"
 	"github.com/RagOfJoes/idp/flow/verification"
 	"github.com/RagOfJoes/idp/internal/config"
+	"github.com/RagOfJoes/idp/session"
 	"github.com/RagOfJoes/idp/user/contact"
 	"github.com/RagOfJoes/idp/user/credential"
 	"github.com/RagOfJoes/idp/user/identity"
@@ -42,7 +43,6 @@ func NewGorm() (db *gorm.DB, err error) {
 		if err != nil {
 			return nil, err
 		}
-		break
 	case "postgres":
 		sslMode := "disable"
 		if !isDev {
@@ -53,7 +53,6 @@ func NewGorm() (db *gorm.DB, err error) {
 		if err != nil {
 			return nil, err
 		}
-		break
 	default:
 		return nil, errors.New("invalid database driver provided")
 	}
@@ -69,6 +68,7 @@ func NewGorm() (db *gorm.DB, err error) {
 
 func migrate(db *gorm.DB) error {
 	return db.AutoMigrate(
+		&session.Session{},
 		&identity.Identity{},
 		&contact.Contact{},
 		&credential.Identifier{},
