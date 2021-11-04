@@ -55,6 +55,21 @@ type Session struct {
 	// Identity is the identity, if any, that the session belongs to
 	Identity *identity.Identity `json:"identity,omitempty" validate:"required_if=State Authenticated"`
 }
+
+type Repository interface {
+	// Create creates a new Session
+	Create(newSession Session) (*Session, error)
+	// Get retrieves a session via ID
+	Get(id uuid.UUID) (*Session, error)
+	// GetByToken retrieves a session via Token
+	GetByToken(token string) (*Session, error)
+	// Update updates a session
+	Update(updateSession Session) (*Session, error)
+	// Delete deletes a session via ID
+	Delete(id uuid.UUID) error
+	// DeleteAllIdentity deletes all the session that belongs to an identity
+	DeleteAllIdentity(identityID uuid.UUID) error
+}
 	//
 	// TODO: Determine whether this is necessary or not
 	Identity *identity.Identity `json:"identity,omitempty"`
