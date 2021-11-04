@@ -3,27 +3,27 @@ package transport
 import (
 	"net/http"
 
-	"github.com/RagOfJoes/idp/session"
+	sessionHttp "github.com/RagOfJoes/idp/session/transport"
 	"github.com/RagOfJoes/idp/transport"
 	"github.com/gin-gonic/gin"
 )
 
 type Http struct {
-	sm *session.Manager
+	sh sessionHttp.Http
 }
 
-func NewIdentityHttp(sm *session.Manager, r *gin.Engine) {
+func NewIdentityHttp(sh sessionHttp.Http, r *gin.Engine) {
 	h := &Http{
-		sm: sm,
+		sh: sh,
 	}
 	r.GET("/me", h.me())
 }
 
 func (h *Http) me() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		sess := transport.IsAuthenticated(c)
-		if sess == nil {
-			c.Error(transport.ErrNotAuthenticated(nil, c.Request.URL.Path))
+		sess, err := h.sh.Session(c.Request, c.Writer)
+		if err != nil {
+			c.Error(transport.ErrNotAuthenticated(err, c.Request.URL.Path))
 			return
 		}
 

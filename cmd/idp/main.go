@@ -94,11 +94,11 @@ func main() {
 	router.Use(transport.SecurityMiddleware(), transport.ErrorMiddleware())
 
 	// Attach routes
-	identityTransport.NewIdentityHttp(sessionManager, router)
-	verificationTransport.NewVerificationHttp(email, sessionManager, verificationService, router)
-	registrationTransport.NewRegistrationHttp(email, sessionManager, registrationService, verificationService, router)
-	loginTransport.NewLoginHttp(loginService, sessionManager, router)
-	recoveryTransport.NewRecoveryHttp(email, recoveryService, identityService, router)
+	identityTransport.NewIdentityHttp(*sessionHttp, router)
+	verificationTransport.NewVerificationHttp(email, *sessionHttp, verificationService, router)
+	registrationTransport.NewRegistrationHttp(email, *sessionHttp, registrationService, verificationService, router)
+	loginTransport.NewLoginHttp(*sessionHttp, loginService, router)
+	recoveryTransport.NewRecoveryHttp(email, *sessionHttp, recoveryService, identityService, router)
 
 	// Start HTTP server
 	if err := transport.RunHttp(router); err != nil {

@@ -10,6 +10,7 @@ import (
 	"github.com/RagOfJoes/idp/flow/recovery"
 	"github.com/RagOfJoes/idp/internal"
 	"github.com/RagOfJoes/idp/internal/config"
+	sessionHttp "github.com/RagOfJoes/idp/session/transport"
 	"github.com/RagOfJoes/idp/transport"
 	"github.com/RagOfJoes/idp/user/contact"
 	"github.com/RagOfJoes/idp/user/identity"
@@ -39,14 +40,16 @@ var (
 
 type Http struct {
 	e  email.Client
+	sh sessionHttp.Http
 	s  recovery.Service
 	is identity.Service
 }
 
-func NewRecoveryHttp(e email.Client, s recovery.Service, is identity.Service, r *gin.Engine) {
+func NewRecoveryHttp(e email.Client, sh sessionHttp.Http, s recovery.Service, is identity.Service, r *gin.Engine) {
 	cfg := config.Get()
 	h := &Http{
 		e:  e,
+		sh: sh,
 		s:  s,
 		is: is,
 	}
@@ -62,11 +65,10 @@ func NewRecoveryHttp(e email.Client, s recovery.Service, is identity.Service, r 
 func (h *Http) initFlow() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		// Check if user is already authenticated
-		if sess := transport.IsAuthenticated(c); sess != nil {
+		if sess, err := h.sh.Session(c.Request, c.Writer); err == nil {
 			c.Error(transport.ErrAlreadyAuthenticated(nil, c.Request.URL.Path, *sess.Identity))
 			return
 		}
-
 		requestURL := transport.RequestURL(c.Request)
 		// Create new flow
 		newFlow, err := h.s.New(requestURL)
@@ -84,7 +86,7 @@ func (h *Http) initFlow() gin.HandlerFunc {
 func (h *Http) getFlow() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		// Check if user is already authenticated
-		if sess := transport.IsAuthenticated(c); sess != nil {
+		if sess, err := h.sh.Session(c.Request, c.Writer); err == nil {
 			c.Error(transport.ErrAlreadyAuthenticated(nil, c.Request.URL.Path, *sess.Identity))
 			return
 		}
@@ -106,7 +108,7 @@ func (h *Http) getFlow() gin.HandlerFunc {
 func (h *Http) submitFlow() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		// Check if user is already authenticated
-		if sess := transport.IsAuthenticated(c); sess != nil {
+		if sess, err := h.sh.Session(c.Request, c.Writer); err == nil {
 			c.Error(transport.ErrAlreadyAuthenticated(nil, c.Request.URL.Path, *sess.Identity))
 			return
 		}
