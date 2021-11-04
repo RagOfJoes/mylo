@@ -1,6 +1,7 @@
 package config
 
 import (
+	"net/http"
 	"time"
 
 	"github.com/RagOfJoes/idp/internal/validate"
@@ -83,9 +84,16 @@ func Setup(filename string, filetype string, filepath string) error {
 		//
 
 		Session: Session{
-			CookieName: "sid",
 			// 2 hours
-			Lifetime: time.Hour * 2,
+			Lifetime: time.Hour * 336,
+			Cookie: Cookie{
+				Path:     "",
+				Domain:   "",
+				Persist:  true,
+				HttpOnly: true,
+				Name:     "raggy_sid",
+				SameSite: http.SameSiteLaxMode,
+			},
 		},
 		Credential: Credential{
 			MinimumScore: 0,
