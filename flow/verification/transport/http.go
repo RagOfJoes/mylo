@@ -10,7 +10,7 @@ import (
 	"github.com/RagOfJoes/idp/email"
 	"github.com/RagOfJoes/idp/flow/verification"
 	"github.com/RagOfJoes/idp/internal/config"
-	"github.com/RagOfJoes/idp/session"
+	sessionHttp "github.com/RagOfJoes/idp/session/transport"
 	"github.com/RagOfJoes/idp/transport"
 	"github.com/RagOfJoes/idp/user/contact"
 	"github.com/RagOfJoes/idp/user/identity"
@@ -60,15 +60,15 @@ var (
 
 type Http struct {
 	e  email.Client
-	sm *session.Manager
+	sh sessionHttp.Http
 	s  verification.Service
 }
 
-func NewVerificationHttp(e email.Client, sm *session.Manager, s verification.Service, r *gin.Engine) {
+func NewVerificationHttp(e email.Client, sh sessionHttp.Http, s verification.Service, r *gin.Engine) {
 	cfg := config.Get()
 	h := &Http{
 		e:  e,
-		sm: sm,
+		sh: sh,
 		s:  s,
 	}
 
@@ -82,10 +82,10 @@ func NewVerificationHttp(e email.Client, sm *session.Manager, s verification.Ser
 
 func (h *Http) initFlow() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		sess := transport.IsAuthenticated(c)
 		// Check if user is not authenticated
-		if sess == nil {
-			c.Error(transport.ErrNotAuthenticated(nil, c.Request.URL.Path))
+		sess, err := h.sh.Session(c.Request, c.Writer)
+		if err != nil {
+			c.Error(transport.ErrNotAuthenticated(err, c.Request.URL.Path))
 			return
 		}
 		// Check if contact provided actually belongs to the user
@@ -137,10 +137,10 @@ func (h *Http) initFlow() gin.HandlerFunc {
 
 func (h *Http) getFlow() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		sess := transport.IsAuthenticated(c)
 		// Check if user is not authenticated
-		if sess == nil {
-			c.Error(transport.ErrNotAuthenticated(nil, c.Request.URL.Path))
+		sess, err := h.sh.Session(c.Request, c.Writer)
+		if err != nil {
+			c.Error(transport.ErrNotAuthenticated(err, c.Request.URL.Path))
 			return
 		}
 		// Retrieve FlowID or VerifyID
@@ -159,10 +159,10 @@ func (h *Http) getFlow() gin.HandlerFunc {
 
 func (h *Http) verifyFlow() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		sess := transport.IsAuthenticated(c)
-		// Check if user is authenticated
-		if sess == nil {
-			c.Error(transport.ErrNotAuthenticated(nil, c.Request.URL.Path))
+		// Check if user is not authenticated
+		sess, err := h.sh.Session(c.Request, c.Writer)
+		if err != nil {
+			c.Error(transport.ErrNotAuthenticated(err, c.Request.URL.Path))
 			return
 		}
 		// Retrieve FlowID or VerifyID

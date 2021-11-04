@@ -3,11 +3,11 @@ package transport
 import (
 	"fmt"
 	"net/http"
-	"runtime"
 
 	"github.com/RagOfJoes/idp/flow/login"
 	"github.com/RagOfJoes/idp/internal/config"
 	"github.com/RagOfJoes/idp/session"
+	sessionHttp "github.com/RagOfJoes/idp/session/transport"
 	"github.com/RagOfJoes/idp/transport"
 	"github.com/RagOfJoes/idp/user/credential"
 	"github.com/gin-gonic/gin"
@@ -29,14 +29,14 @@ var (
 
 type Http struct {
 	s  login.Service
-	sm *session.Manager
+	sh sessionHttp.Http
 }
 
-func NewLoginHttp(s login.Service, sm *session.Manager, r *gin.Engine) {
+func NewLoginHttp(sh sessionHttp.Http, s login.Service, r *gin.Engine) {
 	cfg := config.Get()
 	h := &Http{
 		s:  s,
-		sm: sm,
+		sh: sh,
 	}
 
 	group := r.Group(fmt.Sprintf("/%s", cfg.Login.URL))
@@ -49,11 +49,11 @@ func NewLoginHttp(s login.Service, sm *session.Manager, r *gin.Engine) {
 
 func (h *Http) initFlow() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		if sess := transport.IsAuthenticated(c); sess != nil {
+		// Check if user is already authenticated
+		if sess, err := h.sh.Session(c.Request, c.Writer); err == nil {
 			c.Error(transport.ErrAlreadyAuthenticated(nil, c.Request.URL.Path, *sess.Identity))
 			return
 		}
-
 		reqURL := c.Request.URL.Path
 		reqQuery := c.Request.URL.Query().Encode()
 		fullURL := reqURL
@@ -75,11 +75,11 @@ func (h *Http) initFlow() gin.HandlerFunc {
 
 func (h *Http) getFlow() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		if sess := transport.IsAuthenticated(c); sess != nil {
+		// Check if user is already authenticated
+		if sess, err := h.sh.Session(c.Request, c.Writer); err == nil {
 			c.Error(transport.ErrAlreadyAuthenticated(nil, c.Request.URL.Path, *sess.Identity))
 			return
 		}
-
 		fid := c.Param("flow_id")
 		f, err := h.s.Find(fid)
 		if err != nil {
@@ -95,11 +95,11 @@ func (h *Http) getFlow() gin.HandlerFunc {
 
 func (h *Http) submitFlow() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		if sess := transport.IsAuthenticated(c); sess != nil {
+		// Check if user is already authenticated
+		if sess, err := h.sh.Session(c.Request, c.Writer); err == nil {
 			c.Error(transport.ErrAlreadyAuthenticated(nil, c.Request.URL.Path, *sess.Identity))
 			return
 		}
-
 		// Validate flow id
 		fid := c.Param("flow_id")
 		f, err := h.s.Find(fid)
@@ -109,31 +109,26 @@ func (h *Http) submitFlow() gin.HandlerFunc {
 		}
 		// Validate that all the required
 		// inputs are present
-		var dest login.Payload
-		if err := c.ShouldBind(&dest); err != nil {
+		var payload login.Payload
+		if err := c.ShouldBind(&payload); err != nil {
 			c.Error(errInvalidPayload(err, *f))
 			return
 		}
-
-		user, err := h.s.Submit(*f, dest)
+		user, err := h.s.Submit(*f, payload)
 		if err != nil {
 			c.Error(errInvalidPayload(err, *f))
 			return
 		}
-
-		// Clone gin's raw Context to allow session manager to manipulate it
-		// Then update request with updated context
-		cpy := c.Request.Context()
-		sess, err := h.sm.Insert(cpy, user, []credential.CredentialType{credential.Password})
+		// Create new authenticated session
+		sess, err := session.NewAuthenticated(*user, credential.Password)
 		if err != nil {
-			_, file, line, _ := runtime.Caller(1)
-			c.Error(transport.NewHttpInternalError(err, file, line, "Session_FailedInsert", "Failed to insert new session into session store", map[string]interface{}{
-				"Flow":     f,
-				"Identity": user,
-			}))
+			c.Error(err)
 			return
 		}
-		c.Request = c.Request.WithContext(cpy)
+		if sess, err = h.sh.UpsertAndSetCookie(c.Request, c.Writer, *sess); err != nil {
+			c.Error(err)
+			return
+		}
 
 		c.JSON(http.StatusOK, transport.HttpResponse{
 			Success: true,
