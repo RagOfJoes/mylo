@@ -18,7 +18,9 @@ import (
 	verificationTransport "github.com/RagOfJoes/idp/flow/verification/transport"
 	"github.com/RagOfJoes/idp/internal/config"
 	"github.com/RagOfJoes/idp/persistence"
-	"github.com/RagOfJoes/idp/session"
+	sessionGorm "github.com/RagOfJoes/idp/session/repository/gorm"
+	sessionService "github.com/RagOfJoes/idp/session/service"
+	sessionTransport "github.com/RagOfJoes/idp/session/transport"
 	"github.com/RagOfJoes/idp/transport"
 	contactGorm "github.com/RagOfJoes/idp/user/contact/repository/gorm"
 	contactService "github.com/RagOfJoes/idp/user/contact/service"
@@ -27,6 +29,7 @@ import (
 	identityGorm "github.com/RagOfJoes/idp/user/identity/repository/gorm"
 	identityService "github.com/RagOfJoes/idp/user/identity/service"
 	identityTransport "github.com/RagOfJoes/idp/user/identity/transport"
+	"github.com/gorilla/sessions"
 )
 
 func init() {
@@ -49,6 +52,7 @@ func main() {
 	email := email.New()
 
 	// Setup repositories
+	sessionRepository := sessionGorm.NewGormSessionRepository(db)
 	contactRepository := contactGorm.NewGormContactRepository(db)
 	credentialRepository := credentialGorm.NewGormCredentialRepository(db)
 	identityRepository := identityGorm.NewGormUserRepository(db)
@@ -57,6 +61,7 @@ func main() {
 	registrationRepository := registrationGorm.NewGormRegistrationRepository(db)
 	loginRepository := loginGorm.NewGormLoginRepository(db)
 	// Setup services
+	sessionService := sessionService.NewSessionService(sessionRepository)
 	contactService := contactService.NewContactService(contactRepository)
 	credentialService := credentialService.NewCredentialService(credentialRepository)
 	identityService := identityService.NewIdentityService(identityRepository)
@@ -68,7 +73,8 @@ func main() {
 	recoveryService := recoveryService.NewRecoveryService(recoveryRepository, credentialService, contactService)
 
 	// Create session manager
-	sessionManager, err := session.NewManager()
+	store := sessions.NewCookieStore([]byte(cfg.Session.Cookie.Name))
+	sessionHttp := sessionTransport.NewSessionHttp(store, sessionService)
 	if err != nil {
 		log.Panic(err)
 	}
@@ -81,13 +87,11 @@ func main() {
 	// Order of execution:
 	// 1. Rate Limiter
 	// 2. Security Middleware (Adds essential security headers to request)
-	// 3. Auth Middleware (Checks session for identity if found then passes to context)
-	// 4. Execute route
-	// 5. Error Middleware handles any errors that were generated from route execution
+	// 3. Error Middleware handles any errors that were generated from route execution
 	if cfg.Server.RPS > 0 {
 		router.Use(transport.RateLimiterMiddleware(cfg.Server.RPS))
 	}
-	router.Use(transport.SecurityMiddleware(), session.AuthMiddleware(sessionManager, identityService), transport.ErrorMiddleware())
+	router.Use(transport.SecurityMiddleware(), transport.ErrorMiddleware())
 
 	// Attach routes
 	identityTransport.NewIdentityHttp(sessionManager, router)
@@ -97,7 +101,7 @@ func main() {
 	recoveryTransport.NewRecoveryHttp(email, recoveryService, identityService, router)
 
 	// Start HTTP server
-	if err := transport.RunHttp(sessionManager.LoadAndSave(router)); err != nil {
+	if err := transport.RunHttp(router); err != nil {
 		log.Panic(err)
 	}
 }
