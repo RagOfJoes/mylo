@@ -120,7 +120,7 @@ func ErrorMiddleware() gin.HandlerFunc {
 		c.JSON(http.StatusInternalServerError, HttpResponse{
 			Success: false,
 			Error: &HttpClientError{
-				Summary:     "internal_server_error",
+				Summary:     "InternalServerError",
 				Description: "Oops! Something went wrong. Please try again later.",
 			},
 		})
