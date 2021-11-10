@@ -1,8 +1,6 @@
 package service
 
 import (
-	"time"
-
 	"github.com/RagOfJoes/idp/flow/verification"
 	"github.com/RagOfJoes/idp/user/contact"
 	"github.com/RagOfJoes/idp/user/identity"
@@ -26,7 +24,7 @@ func isValidContact(contact contact.Contact, identity identity.Identity) bool {
 // Check if user has an existing valid flow
 func (s *service) getExistingFlow(contact contact.Contact) *verification.Flow {
 	existing, _ := s.r.GetByContactID(contact.ID)
-	if existing != nil && existing.Status != verification.Success && existing.ExpiresAt.After(time.Now()) {
+	if existing != nil && existing.Valid() == nil {
 		return existing
 	}
 	return nil
