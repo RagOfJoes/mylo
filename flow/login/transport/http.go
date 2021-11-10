@@ -28,15 +28,15 @@ var (
 )
 
 type Http struct {
-	s  login.Service
 	sh sessionHttp.Http
+	s  login.Service
 }
 
 func NewLoginHttp(sh sessionHttp.Http, s login.Service, r *gin.Engine) {
 	cfg := config.Get()
 	h := &Http{
-		s:  s,
 		sh: sh,
+		s:  s,
 	}
 
 	group := r.Group(fmt.Sprintf("/%s", cfg.Login.URL))
@@ -49,24 +49,19 @@ func NewLoginHttp(sh sessionHttp.Http, s login.Service, r *gin.Engine) {
 
 func (h *Http) initFlow() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		// Check if user is already authenticated
-		if sess, err := h.sh.Session(c.Request, c.Writer); err == nil {
-			c.Error(transport.ErrAlreadyAuthenticated(nil, c.Request.URL.Path, *sess.Identity))
+		sess, _ := h.sh.SessionOrNewAndSetCookie(c.Request, c.Writer, false)
+		if sess != nil && sess.Authenticated() {
+			c.Error(internal.NewErrorf(internal.ErrorCodeForbidden, "%v", internal.ErrAlreadyAuthenticated))
 			return
 		}
-		reqURL := c.Request.URL.Path
-		reqQuery := c.Request.URL.Query().Encode()
-		fullURL := reqURL
-		if len(reqQuery) > 0 {
-			fullURL = fmt.Sprintf("%s?%s", reqURL, reqQuery)
-		}
+		fullURL := transport.RequestURL(c.Request)
 		newFlow, err := h.s.New(fullURL)
 		if err != nil {
 			c.Error(errFailedInit(err))
 			return
 		}
 
-		c.JSON(http.StatusOK, transport.HttpResponse{
+		c.JSON(http.StatusCreated, transport.HttpResponse{
 			Success: true,
 			Payload: newFlow,
 		})
@@ -101,14 +96,13 @@ func (h *Http) submitFlow() gin.HandlerFunc {
 			return
 		}
 		// Validate flow id
-		fid := c.Param("flow_id")
-		f, err := h.s.Find(fid)
+		flowID := c.Param("flow_id")
+		flow, err := h.s.Find(flowID)
 		if err != nil {
 			c.Error(errInvalidFlowID(err, fid))
 			return
 		}
-		// Validate that all the required
-		// inputs are present
+		// Check to see if required payload was provided
 		var payload login.Payload
 		if err := c.ShouldBind(&payload); err != nil {
 			c.Error(errInvalidPayload(err, *f))
@@ -119,13 +113,13 @@ func (h *Http) submitFlow() gin.HandlerFunc {
 			c.Error(errInvalidPayload(err, *f))
 			return
 		}
-		// Create new authenticated session
-		sess, err := session.NewAuthenticated(*user, credential.Password)
-		if err != nil {
+		// Authenticate session with password credential method
+		if err := sess.Authenticate(*user, credential.Password); err != nil {
 			c.Error(err)
 			return
 		}
-		if sess, err = h.sh.UpsertAndSetCookie(c.Request, c.Writer, *sess); err != nil {
+		// Save session
+		if sess, err = h.sh.Upsert(*sess); err != nil {
 			c.Error(err)
 			return
 		}

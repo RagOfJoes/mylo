@@ -56,54 +56,39 @@ func NewLoginService(r login.Repository, cos contact.Service, cs credential.Serv
 }
 
 func (s *service) New(requestURL string) (*login.Flow, error) {
-	fid, err := nanoid.New()
+	newFlow, err := login.New(requestURL)
 	if err != nil {
-		return nil, errNanoIDGen(err)
+		return nil, err
 	}
-
-	cfg := config.Get()
-	action := fmt.Sprintf("%s/%s/%s", cfg.Server.URL, cfg.Login.URL, fid)
-	expire := time.Now().Add(cfg.Login.Lifetime)
-	form := generateForm(action)
-	f := login.Flow{
-		FlowID:     fid,
-		Form:       form,
-		ExpiresAt:  expire,
-		RequestURL: requestURL,
-	}
-
-	n, err := s.r.Create(f)
+	created, err := s.r.Create(*newFlow)
 	if err != nil {
 		_, file, line, _ := runtime.Caller(1)
 		return nil, internal.NewServiceInternalError(err, file, line, "Login_FailedCreate", "Failed to create new login flow", map[string]interface{}{
 			"Flow": f,
 		})
 	}
-	return n, nil
+	return created, nil
 }
 
 func (s *service) Find(flowID string) (*login.Flow, error) {
 	if flowID == "" {
 		return nil, errInvalidFlowID(nil, flowID)
 	}
-	f, err := s.r.GetByFlowID(flowID)
-	// Check for error or empty flow
-	if err != nil || f == nil {
-		return nil, errInvalidFlowID(err, flowID)
+
+	flow, err := s.r.GetByFlowID(flowID)
+	if err != nil || flow == nil {
+		return nil, internal.NewErrorf(internal.ErrorCodeNotFound, "%v", login.ErrInvalidExpiredFlow)
 	}
-	// Check for expired flow
-	if f.ExpiresAt.Before(time.Now()) {
-		return nil, errInvalidFlow(nil, *f)
+	if err := flow.Valid(); err != nil {
+		return nil, err
 	}
-	return f, nil
+	return flow, nil
 }
 
 func (s *service) Submit(flow login.Flow, payload login.Payload) (*identity.Identity, error) {
-	// Validate flow
-	if err := validate.Check(flow); err != nil {
-		return nil, errInvalidFlow(err, flow)
+	if err := flow.Valid(); err != nil {
+		return nil, err
 	}
-	// Validate payload provided
 	if err := validate.Check(payload); err != nil {
 		return nil, errInvalidPayload(err, flow, payload)
 	}
@@ -118,7 +103,7 @@ func (s *service) Submit(flow login.Flow, payload login.Payload) (*identity.Iden
 	if err := s.cs.ComparePassword(id.ID, payload.Password); err != nil {
 		return nil, errInvalidPayload(err, flow, payload)
 	}
-	// 5. If everything passes then delete flow
+	// If everything passes then delete flow
 	// TODO: Capture error, if any, here
 	go func() {
 		s.r.Delete(flow.ID)
