@@ -1,12 +1,24 @@
 package registration
 
 import (
+	"errors"
+	"fmt"
 	"time"
 
 	"github.com/RagOfJoes/idp/internal"
+	"github.com/RagOfJoes/idp/internal/config"
+	"github.com/RagOfJoes/idp/internal/validate"
+	"github.com/RagOfJoes/idp/pkg/nanoid"
 	"github.com/RagOfJoes/idp/ui/form"
+	"github.com/RagOfJoes/idp/ui/node"
 	"github.com/RagOfJoes/idp/user/identity"
 	"github.com/gofrs/uuid"
+)
+
+var (
+	ErrInvalidExpiredFlow   = errors.New("Invalid or expired login flow")
+	ErrInvalidPaylod        = errors.New("Invalid identifier(s) or password provided")
+	ErrAlreadyAuthenticated = errors.New("Cannot access this resource while logged in")
 )
 
 type Flow struct {
@@ -23,7 +35,7 @@ type Flow struct {
 	Form form.Form `json:"form" gorm:"not null;type:json" validate:"required"`
 }
 
-// Payload deinfes the data required to complete the flow
+// Payload defines the data required to complete the flow
 type Payload struct {
 	// Email is what it is
 	Email string `json:"email" form:"email" binding:"required" validate:"required,min=1,email"`
@@ -64,4 +76,92 @@ type Service interface {
 // TableName overrides GORM's table name
 func (Flow) TableName() string {
 	return "registrations"
+}
+
+// Form creates a form for registration
+func Form(action string) form.Form {
+	return form.Form{
+		Action: action,
+		Method: form.POST,
+		Nodes: node.Nodes{
+			{
+				Type:  node.Input,
+				Group: node.Password,
+				Attributes: &node.InputAttribute{
+					Required: true,
+					Type:     "text",
+					Label:    "Username",
+					Name:     "username",
+				},
+			},
+			{
+				Type:  node.Input,
+				Group: node.Password,
+				Attributes: &node.InputAttribute{
+					Required: true,
+					Type:     "email",
+					Name:     "email",
+					Label:    "Email Address",
+				},
+			},
+			{
+				Type:  node.Input,
+				Group: node.Password,
+				Attributes: &node.InputAttribute{
+					Required: true,
+					Type:     "password",
+					Name:     "password",
+					Label:    "Password",
+				},
+			},
+			{
+				Type:  node.Input,
+				Group: node.Password,
+				Attributes: &node.InputAttribute{
+					Type:  "text",
+					Name:  "first_name",
+					Label: "First Name",
+				},
+			},
+			{
+				Type:  node.Input,
+				Group: node.Password,
+				Attributes: &node.InputAttribute{
+					Type:  "text",
+					Name:  "last_name",
+					Label: "Last Name",
+				},
+			},
+		},
+	}
+}
+
+// New creates a new Flow
+func New(requestURL string) (*Flow, error) {
+	flowID, err := nanoid.New()
+	if err != nil {
+		return nil, internal.WrapErrorf(err, internal.ErrorCodeInternal, "Failed to generate nano id")
+	}
+
+	cfg := config.Get()
+	expire := time.Now().Add(cfg.Registration.Lifetime)
+	action := fmt.Sprintf("%s/%s/%s", cfg.Server.URL, cfg.Registration.URL, flowID)
+	form := Form(action)
+	return &Flow{
+		FlowID:     flowID,
+		Form:       form,
+		ExpiresAt:  expire,
+		RequestURL: requestURL,
+	}, nil
+}
+
+// Valid checks the validity of flow
+func (f *Flow) Valid() error {
+	if err := validate.Check(f); err != nil {
+		return internal.WrapErrorf(err, internal.ErrorCodeNotFound, "%v", ErrInvalidExpiredFlow)
+	}
+	if f.ExpiresAt.Before(time.Now()) {
+		return internal.NewErrorf(internal.ErrorCodeNotFound, "%v", ErrInvalidExpiredFlow)
+	}
+	return nil
 }
