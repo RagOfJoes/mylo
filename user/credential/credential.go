@@ -1,9 +1,19 @@
 package credential
 
 import (
+	"errors"
 	"time"
 
 	"github.com/gofrs/uuid"
+)
+
+var (
+	ErrWeakPassword              = errors.New("Password is too weak")
+	ErrFailedPasswordCompare     = errors.New("Failed to compare password")
+	ErrFailedGeneratePassword    = errors.New("Failed to generate hashed password")
+	ErrFailedJSONEncodePassword  = errors.New("Failed to JSON encode hashed password")
+	ErrFailedJSONDecodePassword  = errors.New("Failed to JSON decode hashed password")
+	ErrInvalidIdentifierPassword = errors.New("Invalid identifier or password provided")
 )
 
 // Credential can be a Password, OTP, Device Code,

@@ -2,7 +2,6 @@ package service
 
 import (
 	"encoding/json"
-	"runtime"
 	"time"
 
 	"github.com/RagOfJoes/idp/internal"
@@ -10,54 +9,6 @@ import (
 	"github.com/RagOfJoes/idp/user/credential"
 	"github.com/gofrs/uuid"
 	"github.com/nbutton23/zxcvbn-go"
-)
-
-var (
-	errFailedFind = func(src error, i uuid.UUID) error {
-		return internal.NewServiceClientError(src, "Credential_FailedFind", "Invalid identifier/password provided", map[string]interface{}{
-			"IdentityID": i,
-		})
-	}
-	errWeakPassword = func(src error, i uuid.UUID, identifiers []credential.Identifier) error {
-		return internal.NewServiceClientError(nil, "Credential_WeakPassword", "Password provided is too weak", map[string]interface{}{
-			"IdentityID":  i,
-			"Identifiers": identifiers,
-		})
-	}
-	// Internal Errors
-	errFailedGeneratePassword = func(src error, i uuid.UUID, identifiers []credential.Identifier) error {
-		_, file, line, _ := runtime.Caller(1)
-		return internal.NewServiceInternalError(src, file, line, "Credential_FailedPassword", "Failed to generate a hashed password", map[string]interface{}{
-			"IdentityID":  i,
-			"Identifiers": identifiers,
-		})
-	}
-	errFailedCompare = func(src error, i uuid.UUID) error {
-		_, file, line, _ := runtime.Caller(1)
-		return internal.NewServiceInternalError(src, file, line, "Credential_FailedPassword", "Failed to compare password and hash", map[string]interface{}{
-			"IdentityID": i,
-		})
-	}
-	errFailedDecodePassword = func(src error, i uuid.UUID) error {
-		_, file, line, _ := runtime.Caller(1)
-		return internal.NewServiceInternalError(src, file, line, "Credential_FailedPassword", "Failed to decode password credentials", map[string]interface{}{
-			"IdentityID": i,
-		})
-	}
-	errFailedEncodePassword = func(src error, i uuid.UUID, ids []credential.Identifier) error {
-		_, file, line, _ := runtime.Caller(1)
-		return internal.NewServiceInternalError(src, file, line, "Credential_FailedPassword", "Failed to JSON encode hashed password", map[string]interface{}{
-			"IdentityID":  i,
-			"Identifiers": ids,
-		})
-	}
-	errFailedUpdate = func(src error, i uuid.UUID, uc credential.Credential) error {
-		_, file, line, _ := runtime.Caller(1)
-		return internal.NewServiceInternalError(src, file, line, "Credential_FailedUpdate", "Failed to update credential", map[string]interface{}{
-			"IdentityID":        i,
-			"UpdatedCredential": uc,
-		})
-	}
 )
 
 type service struct {
@@ -80,19 +31,19 @@ func (s *service) CreatePassword(uid uuid.UUID, password string, identifiers []c
 	// Test password strength
 	passStrength := zxcvbn.PasswordStrength(password, ids)
 	if passStrength.Score <= cfg.Credential.MinimumScore {
-		return nil, errWeakPassword(nil, uid, identifiers)
+		return nil, internal.NewErrorf(internal.ErrorCodeInvalidArgument, "%v", credential.ErrWeakPassword)
 	}
 	// Hash password
 	newPass, err := generateFromPassword(password)
 	if err != nil {
-		return nil, errFailedGeneratePassword(err, uid, identifiers)
+		return nil, internal.WrapErrorf(err, internal.ErrorCodeInternal, "%v", credential.ErrFailedGeneratePassword)
 	}
 	credPass := credential.CredentialPassword{
 		HashedPassword: newPass,
 	}
 	jsonPass, err := json.Marshal(credPass)
 	if err != nil {
-		return nil, errFailedEncodePassword(err, uid, identifiers)
+		return nil, internal.WrapErrorf(err, internal.ErrorCodeInternal, "%v", credential.ErrFailedJSONEncodePassword)
 	}
 	// Build Credential
 	newCredential := credential.Credential{
@@ -102,31 +53,28 @@ func (s *service) CreatePassword(uid uuid.UUID, password string, identifiers []c
 		Values:      string(jsonPass[:]),
 	}
 	// Create Credential in repository
-	ncp, err := s.cr.Create(newCredential)
+	created, err := s.cr.Create(newCredential)
 	if err != nil {
-		return nil, internal.NewServiceClientError(err, "Credential_FailedCreate", "Invalid identifier(s)/password provided", map[string]interface{}{
-			"IdentityID":  uid,
-			"Identifiers": identifiers,
-		})
+		return nil, internal.WrapErrorf(err, internal.ErrorCodeInternal, "Failed to create password credential")
 	}
-	return ncp, nil
+	return created, nil
 }
 
 func (s *service) ComparePassword(uid uuid.UUID, password string) error {
-	cred, err := s.cr.GetWithIdentityID(credential.Password, uid)
+	found, err := s.cr.GetWithIdentityID(credential.Password, uid)
 	if err != nil {
-		return errFailedFind(err, uid)
+		return internal.WrapErrorf(err, internal.ErrorCodeInvalidArgument, "%v", credential.ErrInvalidIdentifierPassword)
 	}
 	var hashed credential.CredentialPassword
-	if err := json.Unmarshal([]byte(cred.Values), &hashed); err != nil {
-		return errFailedDecodePassword(err, uid)
+	if err := json.Unmarshal([]byte(found.Values), &hashed); err != nil {
+		return internal.WrapErrorf(err, internal.ErrorCodeInternal, "%v", credential.ErrFailedJSONDecodePassword)
 	}
 	match, err := comparePasswordAndHash(password, hashed.HashedPassword)
 	if err != nil {
-		return errFailedCompare(err, uid)
+		internal.WrapErrorf(err, internal.ErrorCodeInternal, "%v", credential.ErrFailedPasswordCompare)
 	}
 	if !match {
-		return errFailedFind(err, uid)
+		return internal.NewErrorf(internal.ErrorCodeInvalidArgument, "%v", credential.ErrInvalidIdentifierPassword)
 	}
 	return nil
 }
@@ -134,9 +82,7 @@ func (s *service) ComparePassword(uid uuid.UUID, password string) error {
 func (s *service) FindPasswordWithIdentifier(identifier string) (*credential.Credential, error) {
 	credential, err := s.cr.GetWithIdentifier(credential.Password, identifier)
 	if err != nil {
-		return nil, internal.NewServiceClientError(err, "Credential_FailedFind", "Invalid identifier provided", map[string]interface{}{
-			"Identifier": identifier,
-		})
+		return nil, internal.WrapErrorf(err, internal.ErrorCodeInvalidArgument, "Invalid identifier provided")
 	}
 	return credential, nil
 }
@@ -144,10 +90,9 @@ func (s *service) FindPasswordWithIdentifier(identifier string) (*credential.Cre
 func (s *service) UpdatePassword(uid uuid.UUID, newPassword string) (*credential.Credential, error) {
 	// Find existing credential
 	cred, err := s.cr.GetWithIdentityID(credential.Password, uid)
+	// TODO: In this scenario should we just create a new password credential behind the scene?
 	if err != nil {
-		return nil, internal.NewServiceClientError(err, "Credential_FailedFind", "The account doesn't exist or the account doesn't have a password credential setup", map[string]interface{}{
-			"IdentityID": uid,
-		})
+		return nil, internal.WrapErrorf(err, internal.ErrorCodeNotFound, "The account doesn't exist or the account doesn't have a password credential setup")
 	}
 	cfg := config.Get()
 	// Get identifiers to test password strength
@@ -158,34 +103,31 @@ func (s *service) UpdatePassword(uid uuid.UUID, newPassword string) (*credential
 	// Test password strength
 	passStrength := zxcvbn.PasswordStrength(newPassword, ids)
 	if passStrength.Score <= cfg.Credential.MinimumScore {
-		return nil, errWeakPassword(nil, uid, cred.Identifiers)
+		return nil, internal.NewErrorf(internal.ErrorCodeInvalidArgument, "%v", credential.ErrWeakPassword)
 	}
 	// Compare new and old password
 	var hashed credential.CredentialPassword
 	if err := json.Unmarshal([]byte(cred.Values), &hashed); err != nil {
-		return nil, errFailedDecodePassword(err, uid)
+		return nil, internal.WrapErrorf(err, internal.ErrorCodeInternal, "%v", credential.ErrFailedJSONDecodePassword)
 	}
 	match, err := comparePasswordAndHash(newPassword, hashed.HashedPassword)
 	if err != nil {
-		return nil, errFailedCompare(err, uid)
+		return nil, internal.WrapErrorf(err, internal.ErrorCodeInternal, "%v", credential.ErrFailedPasswordCompare)
 	}
 	if match {
-		return nil, internal.NewServiceClientError(nil, "Credential_FailedUpdate", "Invalid password provided", map[string]interface{}{
-			"IdentityID":  uid,
-			"NewPassword": newPassword,
-		})
+		return nil, internal.NewErrorf(internal.ErrorCodeInvalidArgument, "%v", credential.ErrInvalidIdentifierPassword)
 	}
 	// Create new password
 	newPass, err := generateFromPassword(newPassword)
 	if err != nil {
-		return nil, errFailedGeneratePassword(err, uid, cred.Identifiers)
+		return nil, internal.WrapErrorf(err, internal.ErrorCodeInternal, "%v", credential.ErrFailedGeneratePassword)
 	}
 	credPass := credential.CredentialPassword{
 		HashedPassword: newPass,
 	}
 	jsonPass, err := json.Marshal(credPass)
 	if err != nil {
-		return nil, errFailedEncodePassword(err, uid, cred.Identifiers)
+		return nil, internal.WrapErrorf(err, internal.ErrorCodeInternal, "%v", credential.ErrFailedJSONEncodePassword)
 	}
 	// Rebuild Credential
 	uc := *cred
@@ -195,12 +137,12 @@ func (s *service) UpdatePassword(uid uuid.UUID, newPassword string) (*credential
 	uc.Identifiers = cred.Identifiers
 	// Delete previous password credential
 	if err := s.cr.Delete(cred.ID); err != nil {
-		return nil, errFailedUpdate(err, uid, uc)
+		return nil, internal.WrapErrorf(err, internal.ErrorCodeInternal, "Failed to update password credential: %s", cred.ID)
 	}
 	// Create new
 	updated, err := s.cr.Create(uc)
 	if err != nil {
-		return nil, errFailedUpdate(err, uid, uc)
+		return nil, internal.WrapErrorf(err, internal.ErrorCodeInternal, "Failed to update password credential: %s", cred.ID)
 	}
 	return updated, nil
 }
