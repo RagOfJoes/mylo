@@ -3,10 +3,10 @@ package transport
 import (
 	"net/http"
 
+	"github.com/RagOfJoes/idp/internal"
 	"github.com/RagOfJoes/idp/internal/config"
 	"github.com/RagOfJoes/idp/internal/validate"
 	"github.com/RagOfJoes/idp/session"
-	"github.com/RagOfJoes/idp/transport"
 	"github.com/gorilla/sessions"
 )
 
@@ -57,14 +57,14 @@ func (h *Http) SetCookie(req *http.Request, w http.ResponseWriter, s session.Ses
 	cfg := config.Get()
 	cookie, err := h.st.Get(req, cfg.Session.Cookie.Name)
 	if err != nil {
-		return err
+		return internal.WrapErrorf(err, internal.ErrorCodeInternal, "Failed to retrieve session from cookie store")
 	}
 	if err := validate.Check(s); err != nil {
-		return err
+		return internal.WrapErrorf(err, internal.ErrorCodeInternal, "%v", session.ErrInvalidSession)
 	}
 	cookie.Values["session"] = s.Token
 	if err := cookie.Save(req, w); err != nil {
-		return err
+		return internal.WrapErrorf(err, internal.ErrorCodeInternal, "Failed to set session token into cookie")
 	}
 	return nil
 }
@@ -87,12 +87,11 @@ func (h *Http) UpsertAndSetCookie(req *http.Request, w http.ResponseWriter, s se
 func (h *Http) Session(req *http.Request, w http.ResponseWriter, mustBeAuthenticated bool) (*session.Session, error) {
 	token := h.getToken(req)
 	if token == "" {
-		return nil, transport.NewHttpClientError(nil, http.StatusUnauthorized, "Session_NotFound", "No active session", nil)
+		return nil, internal.NewErrorf(internal.ErrorCodeUnauthorized, "%v", session.ErrSessionNotFound)
 	}
-
 	found, err := h.se.FindByToken(token)
-	if err != nil || (found != nil && !found.Authenticated()) {
-		return nil, transport.NewHttpClientError(err, http.StatusUnauthorized, "Session_NotFound", "No active session", nil)
+	if err != nil || (mustBeAuthenticated && found != nil && !found.Authenticated()) {
+		return nil, internal.WrapErrorf(err, internal.ErrorCodeUnauthorized, "%v", session.ErrSessionNotFound)
 	}
 	if found.IdentityID != nil && found.Identity != nil {
 		found.Identity.Credentials = nil

@@ -2,7 +2,6 @@ package session
 
 import (
 	"errors"
-	"runtime"
 	"time"
 
 	"github.com/RagOfJoes/idp/internal"
@@ -15,7 +14,11 @@ import (
 )
 
 var (
-	ErrLockedSession = errors.New("Identity has been locked")
+	ErrLockedSession       = errors.New("Identity has been locked")
+	ErrInvalidSession      = errors.New("Invalid session provided")
+	ErrSessionNotFound     = errors.New("No active session found")
+	ErrInvalidSessionID    = errors.New("Invalid session id provided")
+	ErrInvalidSessionToken = errors.New("Invalid session token provided")
 )
 
 // TODO: Check if Locked state is at all useful here
@@ -94,15 +97,12 @@ type Service interface {
 func NewUnauthenticated() (*Session, error) {
 	id, err := uuid.NewV4()
 	if err != nil {
-		_, file, line, _ := runtime.Caller(1)
-		return nil, internal.NewServiceInternalError(err, file, line, "Session_FailedUUID", "Failed to generate uuid", nil)
+		return nil, internal.WrapErrorf(err, internal.ErrorCodeInternal, "Failed to generate uuid")
 	}
 	token, err := nanoid.New()
 	if err != nil {
-		_, file, line, _ := runtime.Caller(1)
-		return nil, internal.NewServiceInternalError(err, file, line, "Session_FailedNanoID", "Failed to generate nano id", nil)
+		return nil, internal.WrapErrorf(err, internal.ErrorCodeInternal, "Failed to generate nano id")
 	}
-
 	now := time.Now()
 	return &Session{
 		ID:        id,
@@ -123,11 +123,22 @@ func NewAuthenticated(identity identity.Identity, methods ...credential.Credenti
 	return newSession, nil
 }
 
+func (s *Session) Valid() error {
+	if err := validate.Check(s); err != nil {
+		return internal.WrapErrorf(err, internal.ErrorCodeInternal, "%v", ErrInvalidSession)
+	}
+	if s.State == Authenticated && s.ExpiresAt == nil {
+		return internal.NewErrorf(internal.ErrorCodeInternal, "%v", ErrInvalidSession)
+	}
+	if s.ExpiresAt.Before(time.Now()) {
+		return internal.NewErrorf(internal.ErrorCodeInternal, "%v", ErrInvalidSession)
+	}
+	return nil
+}
+
 func (s *Session) AddCredential(method credential.CredentialType) error {
 	if s.State == Locked {
-		return internal.NewServiceClientError(nil, "Session_FailedUpdate", "Account has been locked. Reset password to unlock account", map[string]interface{}{
-			"Session": s,
-		})
+		return internal.NewErrorf(internal.ErrorCodeUnauthorized, "Account has been locked. Reset password to unlock account")
 	}
 	s.CredentialMethods = append(s.CredentialMethods, CredentialMethod{
 		Method:   method,
@@ -138,10 +149,8 @@ func (s *Session) AddCredential(method credential.CredentialType) error {
 
 func (s *Session) Authenticate(identity identity.Identity, methods ...credential.CredentialType) error {
 	if s.State == Locked {
-		return internal.NewServiceClientError(nil, "Session_FailedUpdate", "Account has been locked. Reset password to unlock account", map[string]interface{}{
-			"Identity": identity,
-			"Session":  s,
-		})
+		return internal.NewErrorf(internal.ErrorCodeUnauthorized, "Account has been locked. Reset password to unlock account")
+	}
 	for _, method := range methods {
 		if err := s.AddCredential(method); err != nil {
 			return err
