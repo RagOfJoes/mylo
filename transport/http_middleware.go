@@ -1,14 +1,13 @@
 package transport
 
 import (
+	"errors"
 	"fmt"
-	"log"
 	"net/http"
 	"strings"
 
 	"github.com/RagOfJoes/idp/internal"
 	"github.com/RagOfJoes/idp/internal/config"
-	"github.com/RagOfJoes/idp/internal/validate"
 	"github.com/gin-gonic/gin"
 	"github.com/unrolled/secure"
 	"go.uber.org/ratelimit"
@@ -51,78 +50,38 @@ func ErrorMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		// Execute whatever endpoint is hit
 		c.Next()
-
 		// If no errors occurred then return early
 		if len(c.Errors) == 0 {
 			return
 		}
-		// Traverse errors and retrieve last ClientError
-		// that was generated
-		var actualError *internal.ClientError
-		for _, err := range c.Errors {
-			switch err.Err.(type) {
-			case internal.ClientError:
-				t := err.Err.(internal.ClientError)
-				actualError = &t
+		var err *internal.Error
+		status := http.StatusInternalServerError
+		actualErr := HttpErrorResponse{
+			Title:       "InternalServerError",
+			Description: "Oops! Something went wrong. Please try again later.",
+		}
+		// If error is custom error then customize response
+		if errors.As(c.Errors[len(c.Errors)-1], &err) {
+			actualErr.Title = string(err.Code())
+			actualErr.Description = err.Message()
+			switch err.Code() {
+			case internal.ErrorCodeNotFound:
+				status = http.StatusNotFound
+			case internal.ErrorCodeForbidden:
+				status = http.StatusForbidden
+			case internal.ErrorCodeUnauthorized:
+				status = http.StatusUnauthorized
+			case internal.ErrorCodeInvalidArgument:
+				status = http.StatusBadRequest
 			default:
-				internalError, ok := err.Err.(internal.InternalError)
-				if ok {
-					// TODO: Capture error here with some
-					// sort of error tracking service
-					log.Print("Captured error: ", internalError.Error())
-				}
+				actualErr.Title = "InternalServerError"
+				actualErr.Description = "Oops! Something went wrong. Please try again later."
 			}
 		}
-		if actualError != nil {
-			// Pass any special Headers on to response
-			code, headers := (*actualError).Headers()
-			for k, v := range headers {
-				c.Header(k, v)
-			}
-			// Cast specific error type to map proper information
-			// to response
-			switch (*actualError).(type) {
-			case *validate.FormatError:
-				wrap := (*actualError).(*validate.FormatError)
-				c.JSON(code, HttpResponse{
-					Success: false,
-					Error: &HttpClientError{
-						StatusCode:  code,
-						Summary:     wrap.Title(),
-						Description: wrap.Error(),
-					},
-				})
-			case *internal.ServiceClientError:
-				wrap := (*actualError).(*internal.ServiceClientError)
-				c.JSON(code, HttpResponse{
-					Success: false,
-					Error: &HttpClientError{
-						StatusCode:  code,
-						Summary:     wrap.Title(),
-						Description: wrap.Error(),
-					},
-				})
-			case *HttpClientError:
-				wrap := (*actualError).(*HttpClientError)
-				c.JSON(code, HttpResponse{
-					Success: false,
-					Error:   wrap,
-				})
-			}
-			// TODO: Capture error
-			return
-		}
-
-		// If nothing was hit then respond with a 500 and capture
-		// relevant info
-		//
-		// TODO: Capture error
-		c.JSON(http.StatusInternalServerError, HttpResponse{
+		// If nothing was hit then respond with a 500 and capture relevant info
+		c.JSON(status, HttpResponse{
 			Success: false,
-			Error: &HttpClientError{
-				Summary:     "InternalServerError",
-				Description: "Oops! Something went wrong. Please try again later.",
-			},
+			Error:   &actualErr,
 		})
 	}
 }

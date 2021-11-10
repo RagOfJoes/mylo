@@ -13,11 +13,18 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+// HttpErrorResponse defines the error structure that users will be able to see
+type HttpErrorResponse struct {
+	Title       string `json:"title"`
+	Description string `json:"description"`
+}
+
+// HttpResponse defines the structure for responses that users will be able to see
 type HttpResponse struct {
-	Success bool             `json:"success"`
-	Message string           `json:"message,omitempty"`
-	Payload interface{}      `json:"payload,omitempty"`
-	Error   *HttpClientError `json:"error,omitempty"`
+	Success bool               `json:"success"`
+	Message string             `json:"message,omitempty"`
+	Payload interface{}        `json:"payload,omitempty"`
+	Error   *HttpErrorResponse `json:"error,omitempty"`
 }
 
 // NewHTTP returns a configured gin engine instance with some essential middlewares
