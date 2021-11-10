@@ -1,13 +1,26 @@
 package verification
 
 import (
+	"errors"
+	"fmt"
 	"time"
 
 	"github.com/RagOfJoes/idp/internal"
+	"github.com/RagOfJoes/idp/internal/config"
+	"github.com/RagOfJoes/idp/internal/validate"
+	"github.com/RagOfJoes/idp/pkg/nanoid"
 	"github.com/RagOfJoes/idp/ui/form"
+	"github.com/RagOfJoes/idp/ui/node"
 	"github.com/RagOfJoes/idp/user/contact"
 	"github.com/RagOfJoes/idp/user/identity"
 	"github.com/gofrs/uuid"
+)
+
+var (
+	ErrInvalidPassword    = errors.New("Invalid password provided")
+	ErrInvalidExpiredFlow = errors.New("Invalid or expired login flow")
+	ErrNotAuthenticated   = errors.New("You must be logged in to access this resource")
+	ErrInvalidContact     = errors.New("Contact is either already verified or does not exist")
 )
 
 type Status string
@@ -19,8 +32,8 @@ const (
 	// LinkPending occurs when the link has been sent via email/sms and is waiting to be
 	// activated
 	LinkPending Status = "LinkPending"
-	// Success occurs when verification has completed successfully
-	Success Status = "Success"
+	// Complete occurs when verification has completed successfully
+	Complete Status = "Complete"
 )
 
 type Flow struct {
@@ -54,7 +67,7 @@ type SessionWarnPayload struct {
 	Password string `json:"password" form:"password" binding:"required" validate:"required,min=6,max=128"`
 }
 
-// Repository defines
+// Repository defines the interface for repository implementations
 type Repository interface {
 	// Create creates a new flow
 	Create(newFlow Flow) (*Flow, error)
@@ -70,7 +83,7 @@ type Repository interface {
 	Delete(id uuid.UUID) error
 }
 
-// Service defines
+// Service defines the interface for service implementations
 type Service interface {
 	// NewDefault creates a new flow with a Status of LinkPending
 	NewDefault(identity identity.Identity, contact contact.Contact, requestURL string) (*Flow, error)
@@ -88,4 +101,97 @@ type Service interface {
 // TableName overrides GORM's table name
 func (Flow) TableName() string {
 	return "verifications"
+}
+
+// PasswordForm creates a form for flow with SessionWarn status
+func PasswordForm(action string) form.Form {
+	return form.Form{
+		Action: action,
+		Method: "POST",
+		Nodes: node.Nodes{
+			&node.Node{
+				Type:  node.Input,
+				Group: node.Default,
+				Attributes: &node.InputAttribute{
+					Required: true,
+					Name:     "password",
+					Type:     "password",
+					Label:    "Password",
+				},
+			},
+		},
+	}
+}
+
+// NewLinkPending creates a new flow with LinkPending status
+func NewLinkPending(requestURL string, contactID uuid.UUID, identityID uuid.UUID) (*Flow, error) {
+	// Create new FlowID
+	flowID, err := nanoid.New()
+	if err != nil {
+		return nil, internal.WrapErrorf(err, internal.ErrorCodeInternal, "Failed to generate nano id")
+	}
+	// Create new VerifyID
+	verifyID, err := nanoid.New()
+	if err != nil {
+		return nil, internal.WrapErrorf(err, internal.ErrorCodeInternal, "Failed to generate nano id")
+	}
+
+	cfg := config.Get()
+	return &Flow{
+		FlowID:     flowID,
+		VerifyID:   verifyID,
+		RequestURL: requestURL,
+		Status:     LinkPending,
+		ExpiresAt:  time.Now().Add(cfg.Verification.Lifetime),
+
+		Form:       nil,
+		ContactID:  contactID,
+		IdentityID: identityID,
+	}, nil
+}
+
+// NewSessionWarn creates a new flow with SessionWarn status
+func NewSessionWarn(requestURL string, contactID uuid.UUID, identityID uuid.UUID) (*Flow, error) {
+	newFlow, err := NewLinkPending(requestURL, contactID, identityID)
+	if err != nil {
+		return nil, err
+	}
+
+	cfg := config.Get()
+	action := fmt.Sprintf("%s/%s/%s", cfg.Server.URL, cfg.Verification.URL, newFlow.FlowID)
+	form := PasswordForm(action)
+	newFlow.Form = &form
+	newFlow.Status = SessionWarn
+	return newFlow, nil
+}
+
+// Valid checks the validity of the flow
+func (f *Flow) Valid() error {
+	if err := validate.Check(f); err != nil {
+		return internal.WrapErrorf(err, internal.ErrorCodeNotFound, "%v", ErrInvalidExpiredFlow)
+	}
+	if f.Status == Complete || f.ExpiresAt.Before(time.Now()) {
+		return internal.NewErrorf(internal.ErrorCodeNotFound, "%v", ErrInvalidExpiredFlow)
+	}
+	return nil
+}
+
+// BelongsTo checks if flow belongs to user
+func (f *Flow) BelongsTo(identityID uuid.UUID) bool {
+	return f.IdentityID == identityID
+}
+
+// Next moves flow to next Status based on current Status
+func (f *Flow) Next() error {
+	switch f.Status {
+	case SessionWarn:
+		f.Form = nil
+		f.Status = LinkPending
+		return nil
+	case LinkPending:
+		f.Status = Complete
+		return nil
+	default:
+		return internal.NewErrorf(internal.ErrorCodeNotFound, "%v", ErrInvalidExpiredFlow)
+	}
 }
