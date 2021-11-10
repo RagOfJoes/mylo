@@ -1,12 +1,23 @@
 package login
 
 import (
+	"errors"
+	"fmt"
 	"time"
 
 	"github.com/RagOfJoes/idp/internal"
+	"github.com/RagOfJoes/idp/internal/config"
+	"github.com/RagOfJoes/idp/internal/validate"
+	"github.com/RagOfJoes/idp/pkg/nanoid"
 	"github.com/RagOfJoes/idp/ui/form"
+	"github.com/RagOfJoes/idp/ui/node"
 	"github.com/RagOfJoes/idp/user/identity"
 	"github.com/gofrs/uuid"
+)
+
+var (
+	ErrInvalidExpiredFlow = errors.New("Invalid or expired login flow")
+	ErrInvalidPaylod      = errors.New("Invalid identifier or password provided")
 )
 
 type Flow struct {
