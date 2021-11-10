@@ -1,10 +1,10 @@
 package transport
 
 import (
+	"errors"
 	"fmt"
 	"log"
 	"net/http"
-	"runtime"
 
 	"github.com/RagOfJoes/idp/email"
 	"github.com/RagOfJoes/idp/flow/recovery"
@@ -15,27 +15,6 @@ import (
 	"github.com/RagOfJoes/idp/user/contact"
 	"github.com/RagOfJoes/idp/user/identity"
 	"github.com/gin-gonic/gin"
-)
-
-var (
-	errFailedCreate = func(src error) error {
-		return transport.NewHttpClientError(src, http.StatusInternalServerError, "Recovery_FailedCreate", "Failed to create new recovery flow", nil)
-	}
-	errInvalidFlowID = func(src error, f string) error {
-		return transport.NewHttpClientError(src, http.StatusNotFound, "Recovery_InvalidFlow", "Invalid or expired flow", map[string]interface{}{
-			"FlowID": f,
-		})
-	}
-	errInvalidFlow = func(src error, f recovery.Flow) error {
-		return transport.NewHttpClientError(src, http.StatusNotFound, "Recovery_InvalidFlow", "Invalid or expired flow", map[string]interface{}{
-			"Flow": f,
-		})
-	}
-	errInvalidPayload = func(src error, f recovery.Flow) error {
-		return transport.NewHttpClientError(src, http.StatusNotFound, "Recovery_InvalidPayload", "Invalid payload provided", map[string]interface{}{
-			"Flow": f,
-		})
-	}
 )
 
 type Http struct {
@@ -64,18 +43,17 @@ func NewRecoveryHttp(e email.Client, sh sessionHttp.Http, s recovery.Service, is
 
 func (h *Http) initFlow() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		// Check if user is already authenticated
-		if sess, err := h.sh.Session(c.Request, c.Writer); err == nil {
-			c.Error(transport.ErrAlreadyAuthenticated(nil, c.Request.URL.Path, *sess.Identity))
+		if _, err := h.sh.Session(c.Request, c.Writer, true); err == nil {
+			c.Error(internal.NewErrorf(internal.ErrorCodeForbidden, "%v", recovery.ErrAlreadyAuthenticated))
 			return
 		}
-		requestURL := transport.RequestURL(c.Request)
-		// Create new flow
-		newFlow, err := h.s.New(requestURL)
+
+		newFlow, err := h.s.New(transport.RequestURL(c.Request))
 		if err != nil {
-			c.Error(transport.GetHttpError(err, errFailedCreate(err), HttpCodeMap))
+			c.Error(err)
 			return
 		}
+
 		c.JSON(http.StatusOK, transport.HttpResponse{
 			Success: true,
 			Payload: newFlow,
@@ -85,19 +63,18 @@ func (h *Http) initFlow() gin.HandlerFunc {
 
 func (h *Http) getFlow() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		// Check if user is already authenticated
-		if sess, err := h.sh.Session(c.Request, c.Writer); err == nil {
-			c.Error(transport.ErrAlreadyAuthenticated(nil, c.Request.URL.Path, *sess.Identity))
+		if _, err := h.sh.Session(c.Request, c.Writer, true); err == nil {
+			c.Error(internal.NewErrorf(internal.ErrorCodeForbidden, "%v", recovery.ErrAlreadyAuthenticated))
 			return
 		}
-		// Retrieve FlowID or RecoverID
+
 		id := c.Param("id")
-		// Retrieve Flow
 		flow, err := h.s.Find(id)
 		if err != nil {
-			c.Error(transport.GetHttpError(err, errInvalidFlowID(err, id), HttpCodeMap))
+			c.Error(err)
 			return
 		}
+
 		c.JSON(http.StatusOK, transport.HttpResponse{
 			Success: true,
 			Payload: flow,
@@ -107,52 +84,37 @@ func (h *Http) getFlow() gin.HandlerFunc {
 
 func (h *Http) submitFlow() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		// Check if user is already authenticated
-		if sess, err := h.sh.Session(c.Request, c.Writer); err == nil {
-			c.Error(transport.ErrAlreadyAuthenticated(nil, c.Request.URL.Path, *sess.Identity))
+		if _, err := h.sh.Session(c.Request, c.Writer, true); err == nil {
+			c.Error(internal.NewErrorf(internal.ErrorCodeForbidden, "%v", recovery.ErrAlreadyAuthenticated))
 			return
 		}
-		// Retrieve FlowID or RecoverID
+
 		id := c.Param("id")
-		// Retrieve Flow
 		flow, err := h.s.Find(id)
 		if err != nil {
-			c.Error(transport.GetHttpError(err, errInvalidFlowID(err, id), HttpCodeMap))
+			c.Error(err)
 			return
 		}
 
 		switch flow.Status {
 		case recovery.IdentifierPending:
-			// Make sure user provided proper payload
 			var payload recovery.IdentifierPayload
 			if err := c.ShouldBind(&payload); err != nil {
-				c.Error(errInvalidPayload(err, *flow))
+				c.Error(internal.WrapErrorf(err, internal.ErrorCodeInvalidArgument, "%v", recovery.ErrInvalidIdentifierPaylod))
 				return
 			}
-			// Call service
-			submittedFlow, err := h.s.SubmitIdentifier(*flow, payload)
-			if err != nil {
-				clientErr, ok := err.(internal.ClientError)
-				if ok && clientErr.Title() == "Recovery_InvalidIdentifier" {
-					// TODO: Capture Error Here
-					// Return early so that we don't accidentally refer to a nil pointer
-					c.JSON(http.StatusOK, transport.HttpResponse{
-						Success: true,
-						Payload: "Check your email for a link to reset your password. If it doesn’t appear within a few minutes, check your spam folder.",
-					})
-					return
-				}
-				c.Error(transport.GetHttpError(err, transport.NewHttpClientError(err, http.StatusInternalServerError, "Recovery_FailedSubmit", "Failed to submit flow. Please try again later", map[string]interface{}{
-					"Flow":    flow,
-					"Payload": payload,
-				}), HttpCodeMap))
+			submitted, err := h.s.SubmitIdentifier(*flow, payload)
+			if err != nil && !errors.Is(recovery.ErrAccountDoesNotExist, err) {
+				c.Error(err)
 				return
 			}
-			// Send email in the background
+
+			// Send recovery email in the background
+			// TODO: Look to add some dependency for callbacks on certain events
 			go func(flow recovery.Flow) {
-				if submittedFlow.Status == recovery.LinkPending {
+				if submitted.Status == recovery.LinkPending {
 					var emails []string
-					identity, err := h.is.Find(submittedFlow.IdentityID.String())
+					identity, err := h.is.Find(submitted.IdentityID.String())
 					if err != nil {
 						// TODO: Capture Error Here
 						return
@@ -174,41 +136,31 @@ func (h *Http) submitFlow() gin.HandlerFunc {
 						log.Print(err)
 					}
 				}
-			}(*submittedFlow)
+			}(*submitted)
 
 			c.JSON(http.StatusOK, transport.HttpResponse{
 				Success: true,
 				Payload: "Check your email for a link to reset your password. If it doesn’t appear within a few minutes, check your spam folder.",
 			})
 		case recovery.LinkPending:
-			// Make sure user provided proper payload
 			var payload recovery.SubmitPayload
 			if err := c.ShouldBind(&payload); err != nil {
-				c.Error(errInvalidPayload(err, *flow))
+				c.Error(internal.NewErrorf(internal.ErrorCodeInvalidArgument, "%v", err))
 				return
 			}
-			// Call service
-			submittedFlow, err := h.s.SubmitUpdatePassword(*flow, payload)
+
+			submitted, err := h.s.SubmitUpdatePassword(*flow, payload)
 			if err != nil {
-				_, ok := err.(internal.ClientError)
-				if ok {
-					c.Error(err)
-					return
-				}
-				_, file, line, _ := runtime.Caller(1)
-				c.Error(transport.GetHttpError(err, transport.NewHttpInternalError(err, file, line, "Recovery_FailedSubmit", "Failed to submit flow. Please try again later", map[string]interface{}{
-					"IdentityID": flow.IdentityID,
-					"Flow":       flow,
-					"Payload":    payload,
-				}), HttpCodeMap))
+				c.Error(err)
 				return
 			}
+
 			c.JSON(http.StatusOK, transport.HttpResponse{
 				Success: true,
-				Payload: submittedFlow,
+				Payload: submitted,
 			})
 		default:
-			c.Error(errInvalidFlow(err, *flow))
+			c.Error(internal.NewErrorf(internal.ErrorCodeNotFound, "%v", recovery.ErrInvalidExpiredFlow))
 			return
 		}
 	}
