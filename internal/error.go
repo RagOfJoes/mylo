@@ -1,123 +1,65 @@
 package internal
 
 import (
+	"errors"
 	"fmt"
-	"net/http"
 )
 
-// ClientError are errors that can be shared
-// publicly
-type ClientError interface {
-	// Ensures that this interface
-	// also implements std error
-	// library
-	Error() string
+// Common errors
+var (
+	ErrAlreadyAuthenticated = errors.New("Cannot access this resource while logged in")
+	ErrUnauthorized         = errors.New("You must be logged in to access this resource")
+)
 
-	// Will be appended to response
-	Headers() (int, map[string]string)
+type ErrorCode string
 
-	Title() string
-	Message() string
+const (
+	ErrorCodeInternal        ErrorCode = "Internal"
+	ErrorCodeNotFound        ErrorCode = "NotFound"
+	ErrorCodeForbidden       ErrorCode = "Forbidden"
+	ErrorCodeUnauthorized    ErrorCode = "Unauthorized"
+	ErrorCodeInvalidArgument ErrorCode = "InvalidArgument"
+)
+
+type Error struct {
+	src  error
+	msg  string
+	code ErrorCode
 }
 
-// InternalError are errors that could/should
-// be used internally for logging, metrics, etc.
-type InternalError interface {
-	// Ensures that this interface
-	// also implements std error
-	// library
-	Error() string
-
-	// Could be an internal error, stack trace, etc.
-	// Anything that could give further insight for
-	// future debugging and for internal logging
-	Source() string
-	// Human readable summary of error
-	Title() string
-	// Human readable explanation of
-	// error
-	Message() string
-}
-
-// Base Implementations
-//
-//
-
-// ServiceClientError
-type ServiceClientError struct {
-	// Source of the error for better
-	// insight when capturing errors
-	Source error `json:"-"`
-	// Human readable summary of error
-	Summary string `json:"title"`
-	// Message that will be sent back to the client
-	Description string `json:"message"`
-	// Object that can provide further insight
-	// to the client
-	Details map[string]interface{} `json:"details,omitempty"`
-}
-
-func NewServiceClientError(src error, summ string, desc string, details map[string]interface{}) error {
-	err := &ServiceClientError{
-		Source:      src,
-		Summary:     summ,
-		Description: desc,
-		Details:     details,
-	}
-	return err
-}
-
-func (h *ServiceClientError) Error() string {
-	return h.Description
-}
-func (h *ServiceClientError) Headers() (int, map[string]string) {
-	return http.StatusBadRequest, map[string]string{
-		"Content-Type": "application/json; charset=utf-8",
-	}
-}
-func (h *ServiceClientError) Title() string {
-	return h.Summary
-}
-func (h *ServiceClientError) Message() string {
-	return h.Description
-}
-
-// ServiceInternalError
-type ServiceInternalError struct {
-	// Original error
-	Original error `json:"-"`
-	// File defines the file that threw the error
-	File string `json:"-"`
-	// Line defines the line that threw the error
-	Line int `json:"-"`
-	// Summary defines a human readable summary of error
-	Summary string `json:"-"`
-	// Description define a human readable description of error
-	Description string `json:"-"`
-	// Detail describes an object that can provide further insight of error
-	Details map[string]interface{}
-}
-
-func NewServiceInternalError(orig error, file string, line int, summ string, desc string, details map[string]interface{}) error {
-	return &ServiceInternalError{
-		Original:    orig,
-		File:        file,
-		Line:        line,
-		Summary:     summ,
-		Description: desc,
-		Details:     details,
+// WrapErrorf returns a wrapped error
+func WrapErrorf(src error, code ErrorCode, format string, a ...interface{}) error {
+	return &Error{
+		src:  src,
+		code: code,
+		msg:  fmt.Sprintf(format, a...),
 	}
 }
 
-func (h *ServiceInternalError) Error() string {
-	return fmt.Sprintf("%s\n%s", h.Source(), h.Description)
+// NewErrorf instantiates a new error
+func NewErrorf(code ErrorCode, format string, a ...interface{}) error {
+	return WrapErrorf(nil, code, format, a...)
 }
-func (h *ServiceInternalError) Source() string {
-	return fmt.Sprintf("[%s:%d] Original Error: %s", h.File, h.Line, h.Original)
+
+// Error returns the message, when wrapping errors the wrapped error is returned
+func (e *Error) Error() string {
+	if e.src != nil {
+		return fmt.Sprintf("%s: %v", e.msg, e.src)
+	}
+	return e.msg
 }
-func (h *ServiceInternalError) Title() string {
-	return h.Summary
+
+// Unwrap returns the wrapped error, if any
+func (e *Error) Unwrap() error {
+	return e.src
 }
-func (h *ServiceInternalError) Message() string {
-	return h.Description
+
+// Code returns the code representing this error
+func (e *Error) Code() ErrorCode {
+	return e.code
+}
+
+// Message returns the message of the error. Unlike Error(), this will only return the last error's message as opposed to the entire chain error
+func (e *Error) Message() string {
+	return e.msg
 }
