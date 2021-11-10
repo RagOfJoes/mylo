@@ -58,10 +58,10 @@ func (g *gormSessionRepository) Update(updateSession session.Session) (*session.
 	updated := updateSession
 	// Make sure we're not accidentally updating the Identity
 	updated.Identity = nil
-
 	if err := g.DB.Save(&updated).Error; err != nil {
 		return nil, err
 	}
+	updated.Identity = updateSession.Identity
 	return &updated, nil
 }
 
