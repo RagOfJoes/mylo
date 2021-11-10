@@ -1,11 +1,24 @@
 package recovery
 
 import (
+	"errors"
+	"fmt"
 	"time"
 
 	"github.com/RagOfJoes/idp/internal"
+	"github.com/RagOfJoes/idp/internal/config"
+	"github.com/RagOfJoes/idp/internal/validate"
+	"github.com/RagOfJoes/idp/pkg/nanoid"
 	"github.com/RagOfJoes/idp/ui/form"
+	"github.com/RagOfJoes/idp/ui/node"
 	"github.com/gofrs/uuid"
+)
+
+var (
+	ErrInvalidIdentifierPaylod = errors.New("Invalid identifier provided")
+	ErrInvalidExpiredFlow      = errors.New("Invalid or expired recovery flow")
+	ErrAccountDoesNotExist     = errors.New("Account with identifier does not exist")
+	ErrAlreadyAuthenticated    = errors.New("Cannot access this resource while logged in")
 )
 
 type Status string
@@ -13,12 +26,12 @@ type Status string
 const (
 	// IdentifierPending occurs when the flow has just been initialized and must now submit an identifier
 	IdentifierPending Status = "Pending"
-	// LinkPending occurs when the link has been sent via email/sms and is waiting to be activated
-	LinkPending Status = "LinkPending"
-	// Success occurs when recovery has completed successfully
-	Success Status = "Success"
 	// Fail occurs when an invalid identifier has been provided
 	Fail Status = "Fail"
+	// LinkPending occurs when the link has been sent via email/sms and is waiting to be activated
+	LinkPending Status = "LinkPending"
+	// Complete occurs when recovery has completed successfully
+	Complete Status = "Complete"
 )
 
 type Flow struct {
@@ -85,4 +98,120 @@ type Service interface {
 // TableName overrides GORM's table name
 func (Flow) TableName() string {
 	return "recoveries"
+}
+
+// IdentifierForm creates a form for IdentifierPending
+func IdentifierForm(action string) form.Form {
+	return form.Form{
+		Action: action,
+		Method: "POST",
+		Nodes: node.Nodes{
+			&node.Node{
+				Type:  node.Input,
+				Group: node.Default,
+				Attributes: &node.InputAttribute{
+					Required: true,
+					Type:     "text",
+					Name:     "identifier",
+					Label:    "Identifier",
+				},
+			},
+		},
+	}
+}
+
+// RecoverForm creates a form for LinkPending
+func RecoverForm(action string) form.Form {
+	return form.Form{
+		Action: action,
+		Method: "POST",
+		Nodes: node.Nodes{
+			&node.Node{
+				Type:  node.Input,
+				Group: node.Default,
+				Attributes: &node.InputAttribute{
+					Required: true,
+					Name:     "password",
+					Type:     "password",
+					Label:    "New Password",
+				},
+			},
+			&node.Node{
+				Type:  node.Input,
+				Group: node.Default,
+				Attributes: &node.InputAttribute{
+					Required: true,
+					Type:     "password",
+					Name:     "confirm_password",
+					Label:    "Confirm New Password",
+				},
+			},
+		},
+	}
+}
+
+// New creates a new flow with IdentifierPending status
+func New(requestURL string) (*Flow, error) {
+	flowID, err := nanoid.New()
+	if err != nil {
+		return nil, internal.WrapErrorf(err, internal.ErrorCodeInternal, "Failed to generate nano id")
+	}
+	recoverID, err := nanoid.New()
+	if err != nil {
+		return nil, internal.WrapErrorf(err, internal.ErrorCodeInternal, "Failed to generate uuid")
+	}
+	cfg := config.Get()
+	expire := time.Now().Add(cfg.Recovery.Lifetime)
+	action := fmt.Sprintf("%s/%s/%s", cfg.Server.URL, cfg.Recovery.URL, flowID)
+	form := IdentifierForm(action)
+	return &Flow{
+		FlowID:     flowID,
+		ExpiresAt:  expire,
+		RecoverID:  recoverID,
+		RequestURL: requestURL,
+		Status:     IdentifierPending,
+
+		Form: &form,
+	}, nil
+}
+
+// Valid checks the validity of the flow
+func (f *Flow) Valid() error {
+	if err := validate.Check(f); err != nil {
+		return internal.WrapErrorf(err, internal.ErrorCodeNotFound, "%v", ErrInvalidExpiredFlow)
+	}
+	if f.Status == Fail || f.Status == Complete || f.ExpiresAt.Before(time.Now()) {
+		return internal.NewErrorf(internal.ErrorCodeNotFound, "%v", ErrInvalidExpiredFlow)
+	}
+	if f.Status == LinkPending && f.IdentityID == nil {
+		return internal.NewErrorf(internal.ErrorCodeNotFound, "%v", ErrInvalidExpiredFlow)
+	}
+	return nil
+}
+
+// Fail updates flow to Fail status
+func (f *Flow) Fail() {
+	f.Form = nil
+	f.Status = Fail
+}
+
+// Complete updates flow to Complete status
+func (f *Flow) Complete() {
+	f.Form = nil
+	f.Status = Complete
+}
+
+// LinkPending updates flow to LinkPending status
+func (f *Flow) LinkPending(identityID uuid.UUID) error {
+	if f.Status != IdentifierPending {
+		return internal.NewErrorf(internal.ErrorCodeNotFound, "%v", ErrInvalidExpiredFlow)
+	}
+
+	cfg := config.Get()
+	f.Status = LinkPending
+	f.IdentityID = &identityID
+	action := fmt.Sprintf("%s/%s/%s", cfg.Server.URL, cfg.Recovery.URL, f.RecoverID)
+	form := RecoverForm(action)
+	f.Form = &form
+	return nil
 }

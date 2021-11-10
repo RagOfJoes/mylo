@@ -1,64 +1,13 @@
 package service
 
 import (
-	"fmt"
 	"log"
-	"runtime"
-	"time"
 
 	"github.com/RagOfJoes/idp/flow/recovery"
 	"github.com/RagOfJoes/idp/internal"
-	"github.com/RagOfJoes/idp/internal/config"
 	"github.com/RagOfJoes/idp/internal/validate"
-	"github.com/RagOfJoes/idp/pkg/nanoid"
 	"github.com/RagOfJoes/idp/user/contact"
 	"github.com/RagOfJoes/idp/user/credential"
-)
-
-var (
-	errInvalidFlowID = func(src error, f string) error {
-		return internal.NewServiceClientError(src, "Recovery_InvalidFlow", "Invalid or expired flow", map[string]interface{}{
-			"FlowID": f,
-		})
-	}
-	errInvalidRecoverID = func(src error, r string) error {
-		return internal.NewServiceClientError(src, "Recovery_InvalidFlow", "Invalid or expired flow", map[string]interface{}{
-			"RecoverID": r,
-		})
-	}
-	errInvalidFlow = func(src error, f recovery.Flow) error {
-		return internal.NewServiceClientError(src, "Recovery_InvalidFlow", "Invalid or expired flow", map[string]interface{}{
-			"Flow": f,
-		})
-	}
-	errInvalidIdentifierPayload = func(src error, f recovery.Flow, p recovery.IdentifierPayload) error {
-		return internal.NewServiceClientError(src, "Recovery_InvalidIdentifierPayload", "Invalid payload provided", map[string]interface{}{
-			"Flow":    f,
-			"Payload": p,
-		})
-	}
-	errInvalidSubmitPayload = func(src error, f recovery.Flow, p recovery.SubmitPayload) error {
-		desc := "Invalid payload provided"
-		if src != nil {
-			desc = src.Error()
-		}
-		return internal.NewServiceClientError(src, "Recovery_InvalidSubmitPayload", desc, map[string]interface{}{
-			"Flow":    f,
-			"Payload": p,
-		})
-	}
-	// Internal Errors
-	errNanoIDGen = func(src error) error {
-		_, file, line, _ := runtime.Caller(1)
-		return internal.NewServiceInternalError(src, file, line, "Recovery_FailedNanoID", "Failed to generate nano id", nil)
-	}
-	errFailedUpdate = func(src error, o recovery.Flow, n recovery.Flow) error {
-		_, file, line, _ := runtime.Caller(1)
-		return internal.NewServiceInternalError(src, file, line, "Recovery_FailedUpdate", "Failed to update flow", map[string]interface{}{
-			"OldFlow": o,
-			"NewFlow": n,
-		})
-	}
 )
 
 type service struct {
@@ -76,143 +25,95 @@ func NewRecoveryService(r recovery.Repository, cs credential.Service, cos contac
 }
 
 func (s *service) New(requestURL string) (*recovery.Flow, error) {
-	flowID, err := nanoid.New()
+	newFlow, err := recovery.New(requestURL)
 	if err != nil {
-		return nil, errNanoIDGen(err)
+		return nil, err
 	}
-	recoverID, err := nanoid.New()
+	created, err := s.r.Create(*newFlow)
 	if err != nil {
-		return nil, errNanoIDGen(err)
+		return nil, internal.WrapErrorf(err, internal.ErrorCodeInternal, "Failed to create new recovery flow")
 	}
-	cfg := config.Get()
-	action := fmt.Sprintf("%s/%s/%s", cfg.Server.URL, cfg.Recovery.URL, flowID)
-	expire := time.Now().Add(cfg.Recovery.Lifetime)
-	form := generateInitialForm(action)
-	flow := recovery.Flow{
-		FlowID:     flowID,
-		ExpiresAt:  expire,
-		RecoverID:  recoverID,
-		RequestURL: requestURL,
-		Status:     recovery.IdentifierPending,
-
-		Form: &form,
-	}
-	newFlow, err := s.r.Create(flow)
-	if err != nil {
-		_, file, line, _ := runtime.Caller(1)
-		return nil, internal.NewServiceInternalError(err, file, line, "Recovery_FailedCreate", "Failed to create new recovery flow", map[string]interface{}{
-			"Flow": flow,
-		})
-	}
-	return newFlow, nil
+	return created, nil
 }
 
 func (s *service) Find(id string) (*recovery.Flow, error) {
 	if id == "" {
-		return nil, errInvalidFlowID(nil, id)
+		return nil, internal.NewErrorf(internal.ErrorCodeNotFound, "%v", recovery.ErrInvalidExpiredFlow)
 	}
-	// Try to get Flow
+
 	flow, err := s.r.GetByFlowIDOrRecoverID(id)
-	if flow == nil || err != nil {
-		return nil, errInvalidFlowID(err, id)
+	if err != nil || flow == nil {
+		return nil, internal.NewErrorf(internal.ErrorCodeNotFound, "%v", recovery.ErrInvalidExpiredFlow)
 	}
-	// Check for expired flow
-	if flow.ExpiresAt.Before(time.Now()) {
-		return nil, errInvalidFlow(nil, *flow)
+	if err := flow.Valid(); err != nil {
+		return nil, err
 	}
-	// Make sure Status and ID provided are correct
 	switch flow.Status {
 	case recovery.IdentifierPending:
 		if flow.FlowID != id {
-			return nil, errInvalidFlowID(nil, id)
+			return nil, internal.NewErrorf(internal.ErrorCodeNotFound, "%v", recovery.ErrInvalidExpiredFlow)
 		}
 	case recovery.LinkPending:
 		if flow.RecoverID != id {
-			return nil, errInvalidRecoverID(nil, id)
+			return nil, internal.NewErrorf(internal.ErrorCodeNotFound, "%v", recovery.ErrInvalidExpiredFlow)
 		}
-	case recovery.Fail:
-		return nil, errInvalidFlow(nil, *flow)
-	case recovery.Success:
-		return nil, errInvalidFlow(nil, *flow)
 	}
 	return flow, nil
 }
 
 func (s *service) SubmitIdentifier(flow recovery.Flow, payload recovery.IdentifierPayload) (*recovery.Flow, error) {
-	// Validate flow
-	if err := validate.Check(flow); err != nil {
-		return nil, errInvalidFlow(err, flow)
+	if err := flow.Valid(); err != nil {
+		return nil, err
 	}
-	// Validate payload
-	if err := validate.Check(payload); err != nil {
-		return nil, errInvalidIdentifierPayload(err, flow, payload)
-	}
-	// Make sure flow has the proper state
 	if flow.Status != recovery.IdentifierPending {
-		return nil, errInvalidFlow(nil, flow)
+		return nil, internal.NewErrorf(internal.ErrorCodeNotFound, "%v", recovery.ErrInvalidExpiredFlow)
 	}
+	if err := validate.Check(payload); err != nil {
+		return nil, internal.WrapErrorf(err, internal.ErrorCodeInvalidArgument, "%v", recovery.ErrInvalidIdentifierPaylod)
+	}
+
 	credential, err := s.cs.FindPasswordWithIdentifier(payload.Identifier)
 	if err != nil {
-		updateFlow := flow
-		updateFlow.Status = recovery.Fail
-		updateFlow.Form = nil
-		if _, err := s.r.Update(updateFlow); err != nil {
+		flow.Fail()
+		if _, err := s.r.Update(flow); err != nil {
 			// TODO: Capture Error Here
 			log.Print(err)
 		}
-		return nil, internal.NewServiceClientError(err, "Recovery_InvalidIdentifier", "Account with identifier does not exist", map[string]interface{}{
-			"Flow":    flow,
-			"Payload": payload,
-		})
+		// Wrap error with internal code
+		return nil, internal.NewErrorf(internal.ErrorCodeInternal, "%v", err)
 	}
-	cfg := config.Get()
-	// Update flow
-	updateFlow := flow
-	updateFlow.Status = recovery.LinkPending
-	updateFlow.IdentityID = &credential.IdentityID
-	// Generate new form
-	action := fmt.Sprintf("%s/%s/%s", cfg.Server.URL, cfg.Recovery.URL, flow.RecoverID)
-	form := generateRecoveryForm(action)
-	updateFlow.Form = &form
-	updatedFlow, err := s.r.Update(updateFlow)
+	// Update flow to LinkPending
+	if err := flow.LinkPending(credential.IdentityID); err != nil {
+		return nil, err
+	}
+	updated, err := s.r.Update(flow)
 	if err != nil {
-		return nil, errFailedUpdate(err, flow, updateFlow)
+		return nil, internal.WrapErrorf(err, internal.ErrorCodeInternal, "Failed to update recovery flow: %s", flow.ID)
 	}
-	return updatedFlow, nil
+	return updated, nil
 }
 
 func (s *service) SubmitUpdatePassword(flow recovery.Flow, payload recovery.SubmitPayload) (*recovery.Flow, error) {
-	// Validate flow
-	if err := validate.Check(flow); err != nil {
-		return nil, errInvalidFlow(err, flow)
+	if err := flow.Valid(); err != nil {
+		return nil, internal.WrapErrorf(err, internal.ErrorCodeNotFound, "%v", recovery.ErrInvalidExpiredFlow)
 	}
-	// Validate payload
+	if flow.Status != recovery.LinkPending {
+		return nil, internal.NewErrorf(internal.ErrorCodeNotFound, "%v", recovery.ErrInvalidExpiredFlow)
+	}
 	if err := validate.Check(payload); err != nil {
-		return nil, errInvalidSubmitPayload(err, flow, payload)
+		return nil, internal.NewErrorf(internal.ErrorCodeInvalidArgument, err.Error())
 	}
-	// Make sure flow has the proper state
-	if flow.IdentityID == nil || flow.Status != recovery.LinkPending {
-		return nil, errInvalidFlow(nil, flow)
-	}
+
 	// Update password
 	_, err := s.cs.UpdatePassword(*flow.IdentityID, payload.Password)
 	if err != nil {
-		_, ok := err.(internal.ClientError)
-		if ok {
-			return nil, internal.NewServiceClientError(err, "Recovery_FailedSubmit", err.Error(), map[string]interface{}{
-				"Flow":    flow,
-				"Payload": payload,
-			})
-		}
 		return nil, err
 	}
-	// Update flow
-	updateFlow := flow
-	updateFlow.Form = nil
-	updateFlow.Status = recovery.Success
-	updatedFlow, err := s.r.Update(updateFlow)
+	// Complete flow
+	flow.Complete()
+	updated, err := s.r.Update(flow)
 	if err != nil {
-		return nil, errFailedUpdate(err, flow, updateFlow)
+		return nil, internal.WrapErrorf(err, internal.ErrorCodeInternal, "Failed to update recovery flow: %s", flow.ID)
 	}
-	return updatedFlow, nil
+	return updated, nil
 }
