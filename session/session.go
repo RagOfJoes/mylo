@@ -7,6 +7,7 @@ import (
 
 	"github.com/RagOfJoes/idp/internal"
 	"github.com/RagOfJoes/idp/internal/config"
+	"github.com/RagOfJoes/idp/internal/validate"
 	"github.com/RagOfJoes/idp/pkg/nanoid"
 	"github.com/RagOfJoes/idp/user/credential"
 	"github.com/RagOfJoes/idp/user/identity"
@@ -17,6 +18,7 @@ var (
 	ErrLockedSession = errors.New("Identity has been locked")
 )
 
+// TODO: Check if Locked state is at all useful here
 // State defines the current state of the session
 type State string
 
@@ -31,7 +33,10 @@ const (
 
 // Session defines the session model
 //
-// This will persist throughout
+// A Session will only be assigned when one of the following occur:
+// - A User attempts to access a protected resource without being Authenticated (ie. /me, /verificaition)
+// - A User successfully passes first factor (ie. Login Flow via Password)
+// - (If MFA is active) A User successfully passes second factor (ie. TOTP via authenticator app)
 type Session struct {
 	// ID defines the unique id for the session
 	ID uuid.UUID `json:"id" gorm:"not null" validate:"required"`
@@ -44,11 +49,11 @@ type Session struct {
 	// CreatedAt defines when the session was created
 	CreatedAt time.Time `json:"created_at" gorm:"index;not null;default:current_timestamp" validate:"required"`
 	// ExpiresAt defines the expiration of the session. This'll only be applicable when `State` is `Authenticated`
-	ExpiresAt time.Time `json:"expires_at" validate:"required_if=State Authenticated"`
+	ExpiresAt *time.Time `json:"expires_at" validate:"required_if=State Authenticated"`
 	// AuthenticatedAt defines the time when user was successfully logged in
-	AuthenticatedAt time.Time `json:"authenticated_at" validate:"required_if=State Authenticated"`
+	AuthenticatedAt *time.Time `json:"authenticated_at" validate:"required_if=State Authenticated"`
 	// CredentialMethods defines the list of credentials used to authenticate the user
-	CredentialMethods CredentialMethods `json:"credential_methods" gorm:"type:json" validate:"required_if=State Authenticated"`
+	CredentialMethods CredentialMethods `json:"credential_methods,omitempty" gorm:"type:json;default:null" validate:"required_if=State Authenticated"`
 
 	// IdentityID defines the ID of the User that the session belongs to
 	IdentityID *uuid.UUID `json:"-" validate:"required_if=State Authenticated"`
@@ -72,10 +77,7 @@ type Repository interface {
 }
 
 type Service interface {
-	// New creates a session with the lowest level of values
-	//
-	// State: Unauthenticated
-	// Identity: nil
+	// New creates a session
 	New(newSession Session) (*Session, error)
 	// FindByID finds a session via ID
 	FindByID(id uuid.UUID) (*Session, error)
@@ -104,8 +106,8 @@ func NewUnauthenticated() (*Session, error) {
 	now := time.Now()
 	return &Session{
 		ID:        id,
-		Token:     token,
 		CreatedAt: now,
+		Token:     token,
 		State:     Unauthenticated,
 	}, nil
 }
@@ -115,11 +117,7 @@ func NewAuthenticated(identity identity.Identity, methods ...credential.Credenti
 	if err != nil {
 		return nil, err
 	}
-
-	for _, method := range methods {
-		newSession.AddCredential(method)
-	}
-	if err := newSession.Authenticate(identity); err != nil {
+	if err := newSession.Authenticate(identity, methods...); err != nil {
 		return nil, err
 	}
 	return newSession, nil
@@ -138,18 +136,24 @@ func (s *Session) AddCredential(method credential.CredentialType) error {
 	return nil
 }
 
-func (s *Session) Authenticate(identity identity.Identity) error {
+func (s *Session) Authenticate(identity identity.Identity, methods ...credential.CredentialType) error {
 	if s.State == Locked {
 		return internal.NewServiceClientError(nil, "Session_FailedUpdate", "Account has been locked. Reset password to unlock account", map[string]interface{}{
 			"Identity": identity,
 			"Session":  s,
 		})
+	for _, method := range methods {
+		if err := s.AddCredential(method); err != nil {
+			return err
+		}
 	}
+
 	cfg := config.Get()
 	now := time.Now()
+	expire := now.Add(cfg.Session.Lifetime)
 	s.State = Authenticated
-	s.AuthenticatedAt = now
-	s.ExpiresAt = s.AuthenticatedAt.Add(cfg.Session.Lifetime)
+	s.ExpiresAt = &expire
+	s.AuthenticatedAt = &now
 	s.IdentityID = &identity.ID
 	s.Identity = &identity
 	return nil
