@@ -1,43 +1,13 @@
 package service
 
 import (
-	"fmt"
-	"runtime"
-	"time"
-
 	"github.com/RagOfJoes/idp/flow/registration"
 	"github.com/RagOfJoes/idp/internal"
-	"github.com/RagOfJoes/idp/internal/config"
 	"github.com/RagOfJoes/idp/internal/validate"
-	"github.com/RagOfJoes/idp/pkg/nanoid"
 	"github.com/RagOfJoes/idp/user/contact"
 	"github.com/RagOfJoes/idp/user/credential"
 	"github.com/RagOfJoes/idp/user/identity"
 	"golang.org/x/sync/errgroup"
-)
-
-var (
-	errInvalidFlowID = func(src error, f string) error {
-		return internal.NewServiceClientError(src, "Registration_InvalidFlow", "Invalid or expired flow", map[string]interface{}{
-			"FlowID": f,
-		})
-	}
-	errInvalidFlow = func(src error, f registration.Flow) error {
-		return internal.NewServiceClientError(src, "Registration_InvalidFlow", "Invalid or expired flow", map[string]interface{}{
-			"Flow": f,
-		})
-	}
-	errInvalidPayload = func(src error, f registration.Flow, p registration.Payload) error {
-		return internal.NewServiceClientError(src, "Registration_InvalidPayload", "Invalid identifier(s) or password provided", map[string]interface{}{
-			"Flow":    f,
-			"Payload": p,
-		})
-	}
-	// Internal Errors
-	errNanoIDGen = func(src error) error {
-		_, file, line, _ := runtime.Caller(1)
-		return internal.NewServiceInternalError(src, file, line, "Registration_FailedNanoID", "Failed to generate nano id", nil)
-	}
 )
 
 type service struct {
@@ -57,64 +27,47 @@ func NewRegistrationService(r registration.Repository, cos contact.Service, cs c
 }
 
 func (s *service) New(requestURL string) (*registration.Flow, error) {
-	fid, err := nanoid.New()
+	newFlow, err := registration.New(requestURL)
 	if err != nil {
-		return nil, errNanoIDGen(err)
+		return nil, err
 	}
-
-	cfg := config.Get()
-	action := fmt.Sprintf("%s/%s/%s", cfg.Server.URL, cfg.Registration.URL, fid)
-	expire := time.Now().Add(cfg.Registration.Lifetime)
-	form := generateForm(action)
-	n, err := s.r.Create(registration.Flow{
-		FlowID:     fid,
-		Form:       form,
-		ExpiresAt:  expire,
-		RequestURL: requestURL,
-	})
+	created, err := s.r.Create(*newFlow)
 	if err != nil {
-		_, file, line, _ := runtime.Caller(1)
-		return nil, internal.NewServiceInternalError(err, file, line, "Registration_FailedCreate", "Failed to create new registration flow", map[string]interface{}{
-			"Flow": n,
-		})
+		return nil, internal.WrapErrorf(err, internal.ErrorCodeInternal, "Failed to create new registration flow")
 	}
-	return n, nil
+	return created, nil
 }
 
 func (s *service) Find(flowID string) (*registration.Flow, error) {
 	if flowID == "" {
-		return nil, errInvalidFlowID(nil, flowID)
+		return nil, internal.NewErrorf(internal.ErrorCodeNotFound, "%v", registration.ErrInvalidExpiredFlow)
 	}
-	// Try to get Flow
-	f, err := s.r.GetByFlowID(flowID)
-	// Check for error or empty flow
-	if err != nil || f == nil {
-		return nil, errInvalidFlowID(err, flowID)
+
+	flow, err := s.r.GetByFlowID(flowID)
+	if err != nil || flow == nil {
+		return nil, internal.NewErrorf(internal.ErrorCodeNotFound, "%v", registration.ErrInvalidExpiredFlow)
 	}
-	// Check for expired flow
-	if f.ExpiresAt.Before(time.Now()) {
-		return nil, errInvalidFlow(nil, *f)
+	if err := flow.Valid(); err != nil {
+		return nil, err
 	}
-	return f, nil
+	return flow, nil
 }
 
 func (s *service) Submit(flow registration.Flow, payload registration.Payload) (*identity.Identity, error) {
-	// Validate flow
-	if err := validate.Check(flow); err != nil {
-		return nil, errInvalidFlow(err, flow)
+	if err := flow.Valid(); err != nil {
+		return nil, internal.NewErrorf(internal.ErrorCodeNotFound, "%v", registration.ErrInvalidExpiredFlow)
 	}
-	// Validate payload
 	if err := validate.Check(payload); err != nil {
-		return nil, err
+		return nil, internal.NewErrorf(internal.ErrorCodeInvalidArgument, "%v", err)
 	}
 	// Instantiate new identity
+	// TODO: Use identity function here to create identity
 	tempIdentity := identity.Identity{
 		Email:     payload.Email,
 		FirstName: payload.FirstName,
 		LastName:  payload.LastName,
 	}
 	// Create new identity
-	// TODO: Determine whether or not we should wrap this error
 	newUser, err := s.is.Create(tempIdentity, payload.Username, payload.Password)
 	if err != nil {
 		return nil, err
@@ -133,9 +86,8 @@ func (s *service) Submit(flow registration.Flow, payload registration.Payload) (
 			},
 		}...)
 		if err != nil {
-			return errInvalidPayload(err, flow, payload)
+			return internal.WrapErrorf(err, internal.ErrorCodeInvalidArgument, "%v", registration.ErrInvalidPaylod)
 		}
-
 		// Append new contact to instantiated identity
 		newUser.Contacts = append(newUser.Contacts, vc...)
 		return nil
@@ -151,7 +103,6 @@ func (s *service) Submit(flow registration.Flow, payload registration.Payload) (
 				Value: payload.Username,
 			},
 		})
-		// TODO: Determine whether or not we should wrap this error
 		if err != nil {
 			return err
 		}
@@ -165,7 +116,8 @@ func (s *service) Submit(flow registration.Flow, payload registration.Payload) (
 		s.is.Delete(newUser.ID.String(), true)
 		return nil, err
 	}
-	// Delete service in background
+	// If everything passes then delete flow
+	// TODO: Capture error, if any, here
 	go func() {
 		s.r.Delete(flow.ID)
 	}()

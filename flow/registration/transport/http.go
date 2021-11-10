@@ -6,37 +6,16 @@ import (
 	"net/http"
 
 	"github.com/RagOfJoes/idp/email"
+	"github.com/RagOfJoes/idp/flow/recovery"
 	"github.com/RagOfJoes/idp/flow/registration"
 	"github.com/RagOfJoes/idp/flow/verification"
+	"github.com/RagOfJoes/idp/internal"
 	"github.com/RagOfJoes/idp/internal/config"
-	"github.com/RagOfJoes/idp/session"
 	sessionHttp "github.com/RagOfJoes/idp/session/transport"
 	"github.com/RagOfJoes/idp/transport"
 	"github.com/RagOfJoes/idp/user/credential"
 	"github.com/RagOfJoes/idp/user/identity"
 	"github.com/gin-gonic/gin"
-)
-
-var (
-	errFailedCreate = func(src error) error {
-		return transport.NewHttpClientError(src, http.StatusInternalServerError, "Registration_FailedCreate", "Failed to create new registration flow", nil)
-	}
-	errInvalidFlowID = func(src error, fid string) error {
-		return transport.NewHttpClientError(src, http.StatusNotFound, "Registration_InvalidFlow", src.Error(), map[string]interface{}{
-			"FlowID": fid,
-		})
-	}
-	errInvalidPayload = func(src error, f registration.Flow) error {
-		return transport.NewHttpClientError(src, http.StatusNotFound, "Registration_InvalidPayload", "Invalid payload provided", map[string]interface{}{
-			"Flow": f,
-		})
-	}
-	errFailedSubmit = func(src error, f registration.Flow, p registration.Payload) error {
-		return transport.NewHttpClientError(src, http.StatusInternalServerError, "Registration_FailedSubmit", "Failed to submit registration flow. Please try again later.", map[string]interface{}{
-			"Flow":    f,
-			"Payload": p,
-		})
-	}
 )
 
 type Http struct {
@@ -66,23 +45,17 @@ func NewRegistrationHttp(e email.Client, sh sessionHttp.Http, s registration.Ser
 func (h *Http) initFlow() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		// Check if user is already authenticated
-		if sess, err := h.sh.Session(c.Request, c.Writer); err == nil {
-			c.Error(transport.ErrAlreadyAuthenticated(nil, c.Request.URL.Path, *sess.Identity))
+		if _, err := h.sh.Session(c.Request, c.Writer, true); err == nil {
+			c.Error(internal.NewErrorf(internal.ErrorCodeForbidden, "%v", registration.ErrAlreadyAuthenticated))
 			return
 		}
-		// Retrieve request URL
-		reqURL := c.Request.URL.Path
-		reqQuery := c.Request.URL.Query().Encode()
-		fullURL := reqURL
-		if len(reqQuery) > 0 {
-			fullURL = fmt.Sprintf("%s?%s", reqURL, reqQuery)
-		}
-		// Create new flow
+		fullURL := transport.RequestURL(c.Request)
 		newFlow, err := h.s.New(fullURL)
 		if err != nil {
-			c.Error(transport.GetHttpError(err, errFailedCreate(err), HttpCodeMap))
+			c.Error(err)
 			return
 		}
+
 		c.JSON(http.StatusOK, transport.HttpResponse{
 			Success: true,
 			Payload: newFlow,
@@ -92,66 +65,65 @@ func (h *Http) initFlow() gin.HandlerFunc {
 
 func (h *Http) getFlow() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		// Check if user is already authenticated
-		if sess, err := h.sh.Session(c.Request, c.Writer); err == nil {
-			c.Error(transport.ErrAlreadyAuthenticated(nil, c.Request.URL.Path, *sess.Identity))
+		if _, err := h.sh.Session(c.Request, c.Writer, true); err == nil {
+			c.Error(internal.NewErrorf(internal.ErrorCodeForbidden, "%v", recovery.ErrAlreadyAuthenticated))
 			return
 		}
-		// Retrieve FlowID
-		fid := c.Param("flow_id")
-		//
-		f, err := h.s.Find(fid)
+		flowID := c.Param("flow_id")
+		flow, err := h.s.Find(flowID)
 		if err != nil {
-			c.Error(transport.GetHttpError(err, errInvalidFlowID(err, fid), HttpCodeMap))
+			c.Error(err)
 			return
 		}
+
 		c.JSON(http.StatusOK, transport.HttpResponse{
 			Success: true,
-			Payload: f,
+			Payload: flow,
 		})
 	}
 }
 
 func (h *Http) submitFlow() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		// Check if user is already authenticated
-		if sess, err := h.sh.Session(c.Request, c.Writer); err == nil {
-			c.Error(transport.ErrAlreadyAuthenticated(nil, c.Request.URL.Path, *sess.Identity))
+		sess, _ := h.sh.SessionOrNewAndSetCookie(c.Request, c.Writer, false)
+		if sess != nil && sess.Authenticated() {
+			c.Error(internal.NewErrorf(internal.ErrorCodeForbidden, "%v", internal.ErrAlreadyAuthenticated))
 			return
 		}
 		// Retrieve flow id
-		fid := c.Param("flow_id")
+		flowID := c.Param("flow_id")
 		// Check if flow id provided is valid
-		existing, err := h.s.Find(fid)
+		flow, err := h.s.Find(flowID)
 		if err != nil {
-			c.Error(transport.GetHttpError(err, errInvalidFlowID(err, fid), HttpCodeMap))
+			c.Error(err)
 			return
 		}
 		// Check to see if required payload was provided
 		var payload registration.Payload
 		if err := c.ShouldBind(&payload); err != nil {
-			c.Error(errInvalidPayload(err, *existing))
+			c.Error(internal.WrapErrorf(err, internal.ErrorCodeInvalidArgument, "%v", registration.ErrInvalidPaylod))
 			return
 		}
-		// Submit flow
-		user, err := h.s.Submit(*existing, payload)
-		if err != nil {
-			c.Error(transport.GetHttpError(err, errFailedSubmit(err, *existing, payload), HttpCodeMap))
-			return
-		}
-		// Create new authenticated session
-		sess, err := session.NewAuthenticated(*user, credential.Password)
+		user, err := h.s.Submit(*flow, payload)
 		if err != nil {
 			c.Error(err)
 			return
 		}
-		if sess, err = h.sh.UpsertAndSetCookie(c.Request, c.Writer, *sess); err != nil {
+		// Authenticate session with password credential method
+		if err := sess.Authenticate(*user, credential.Password); err != nil {
 			c.Error(err)
 			return
 		}
+		// Save session
+		if sess, err = h.sh.Upsert(*sess); err != nil {
+			c.Error(err)
+			return
+		}
+
 		// Create a new verification flow in the background
+		// TODO: Look to add some dependency for callbacks on certain events
 		go func(user identity.Identity) {
-			vf, err := h.vs.NewDefault(user, user.Contacts[0], fmt.Sprintf("/registration/%s", fid))
+			vf, err := h.vs.NewDefault(user, user.Contacts[0], fmt.Sprintf("/registration/%s", flowID))
 			if err != nil {
 				// TODO: Capture error
 				log.Print(err)
