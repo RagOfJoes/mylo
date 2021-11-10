@@ -40,6 +40,9 @@ type CredentialMethods []CredentialMethod
 
 // Scan implements the Scanner interface.
 func (c *CredentialMethods) Scan(value interface{}) error {
+	if value == nil {
+		return nil
+	}
 	v := fmt.Sprintf("%s", value)
 	if len(v) == 0 {
 		return nil
