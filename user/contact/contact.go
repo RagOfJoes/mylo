@@ -1,10 +1,15 @@
 package contact
 
 import (
+	"errors"
 	"time"
 
 	"github.com/RagOfJoes/idp/internal"
 	"github.com/gofrs/uuid"
+)
+
+var (
+	ErrContactDoesNotExist = errors.New("Contact does not exist")
 )
 
 // Type defines the type of contact

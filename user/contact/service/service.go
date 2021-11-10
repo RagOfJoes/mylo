@@ -1,20 +1,9 @@
 package service
 
 import (
-	"fmt"
-	"runtime"
-
 	"github.com/RagOfJoes/idp/internal"
 	"github.com/RagOfJoes/idp/user/contact"
 	"github.com/gofrs/uuid"
-)
-
-var (
-	errAddInvalidContacts = func(src error, i uuid.UUID) error {
-		return internal.NewServiceClientError(src, "Contact_FailedAdd", "Invalid contact values provided", map[string]interface{}{
-			"IdentityID": i,
-		})
-	}
 )
 
 type service struct {
@@ -27,42 +16,33 @@ func NewContactService(cr contact.Repository) contact.Service {
 	}
 }
 
-func (s *service) Add(args ...contact.Contact) ([]contact.Contact, error) {
-	if len(args) == 0 {
-		return nil, errAddInvalidContacts(nil, uuid.UUID{})
+func (s *service) Add(contacts ...contact.Contact) ([]contact.Contact, error) {
+	if len(contacts) == 0 {
+		return nil, internal.NewErrorf(internal.ErrorCodeInvalidArgument, "Must provide at least one contact")
 	}
-
-	identityID := args[0].IdentityID
+	identityID := contacts[0].IdentityID
 	if err := s.cr.DeleteAllUser(identityID); err != nil {
-		_, file, line, _ := runtime.Caller(1)
-		return nil, internal.NewServiceInternalError(err, file, line, "Contact_FailedDelete", fmt.Sprintf("Failed to delete %s contacts", identityID), map[string]interface{}{
-			"IdentityID": identityID,
-		})
+		return nil, internal.WrapErrorf(err, internal.ErrorCodeInternal, "Failed to delete contacts that belong to %s", identityID)
 	}
-
-	n, err := s.cr.Create(args...)
+	created, err := s.cr.Create(contacts...)
 	if err != nil {
-		return nil, errAddInvalidContacts(err, identityID)
+		return nil, internal.WrapErrorf(err, internal.ErrorCodeInternal, "Failed to create contacts for %s", identityID)
 	}
-	return n, nil
+	return created, nil
 }
 
-func (s *service) Find(i string) (*contact.Contact, error) {
-	uid, err := uuid.FromString(i)
+func (s *service) Find(id string) (*contact.Contact, error) {
+	uid, err := uuid.FromString(id)
 	if err == nil {
-		f, err := s.cr.Get(uid)
+		found, err := s.cr.Get(uid)
 		if err != nil {
-			return nil, internal.NewServiceClientError(err, "Contact_FailedFind", "Contact does not exist", map[string]interface{}{
-				"ContactID": uid,
-			})
+			return nil, internal.WrapErrorf(err, internal.ErrorCodeNotFound, "%v", contact.ErrContactDoesNotExist)
 		}
-		return f, nil
+		return found, nil
 	}
-	f, err := s.cr.GetByValue(i)
+	found, err := s.cr.GetByValue(id)
 	if err != nil {
-		return nil, internal.NewServiceClientError(err, "Contact_FailedFind", "Contact does not exist", map[string]interface{}{
-			"Contact": contact.Contact{Value: i},
-		})
+		return nil, internal.WrapErrorf(err, internal.ErrorCodeNotFound, "%v", contact.ErrContactDoesNotExist)
 	}
-	return f, nil
+	return found, nil
 }
