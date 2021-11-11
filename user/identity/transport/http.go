@@ -3,6 +3,7 @@ package transport
 import (
 	"net/http"
 
+	"github.com/RagOfJoes/idp/internal"
 	sessionHttp "github.com/RagOfJoes/idp/session/transport"
 	"github.com/RagOfJoes/idp/transport"
 	"github.com/gin-gonic/gin"
@@ -21,9 +22,9 @@ func NewIdentityHttp(sh sessionHttp.Http, r *gin.Engine) {
 
 func (h *Http) me() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		sess, err := h.sh.Session(c.Request, c.Writer)
-		if err != nil {
-			c.Error(transport.ErrNotAuthenticated(err, c.Request.URL.Path))
+		sess, err := h.sh.Session(c.Request, c.Writer, true)
+		if err != nil || sess == nil {
+			c.Error(internal.WrapErrorf(err, internal.ErrorCodeUnauthorized, "%v", internal.ErrUnauthorized))
 			return
 		}
 

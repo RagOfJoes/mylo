@@ -37,7 +37,7 @@ const (
 // Session defines the session model
 //
 // A Session will only be assigned when one of the following occur:
-// - A User attempts to access a protected resource without being Authenticated (ie. /me, /verificaition)
+// - A User attempts to access a protected resource without being Authenticated (ie. /verificaition)
 // - A User successfully passes first factor (ie. Login Flow via Password)
 // - (If MFA is active) A User successfully passes second factor (ie. TOTP via authenticator app)
 type Session struct {
