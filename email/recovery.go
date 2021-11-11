@@ -2,8 +2,6 @@ package email
 
 import (
 	"encoding/json"
-	"fmt"
-	"runtime"
 
 	"github.com/RagOfJoes/idp/internal"
 	"github.com/RagOfJoes/idp/internal/config"
@@ -17,10 +15,7 @@ func (c *client) SendRecovery(to []string, recoveryURL string) error {
 	var validationErr error
 	for _, e := range to {
 		if err := validate.Var(e, "email"); err != nil {
-			_, file, line, _ := runtime.Caller(1)
-			validationErr = internal.NewServiceInternalError(err, file, line, "", fmt.Sprintf("Value, %s, provided for the argument `to` must be a valid email.", to), map[string]interface{}{
-				"Email": to,
-			})
+			validationErr = internal.WrapErrorf(err, internal.ErrorCodeInternal, "Value, %s, provided for the argument `to` must be a valid email.", to)
 			break
 		}
 		emails = append(emails, &Email{
@@ -50,22 +45,14 @@ func (c *client) SendRecovery(to []string, recoveryURL string) error {
 	}
 	body, err := json.Marshal(pay)
 	if err != nil {
-		_, file, line, _ := runtime.Caller(1)
-		return internal.NewServiceInternalError(err, file, line, "Email_FailedMarshal", "Failed to marshal payload", map[string]interface{}{
-			"Email":   to,
-			"Payload": pay,
-		})
+		return internal.WrapErrorf(err, internal.ErrorCodeInternal, "Failed to marshal payload")
 	}
 	// Make request to SendGrid
 	request := sendgrid.GetRequest(c.apiKey, "/v3/mail/send", c.host)
 	request.Method = "POST"
 	request.Body = body
 	if _, err := sendgrid.API(request); err != nil {
-		_, file, line, _ := runtime.Caller(1)
-		return internal.NewServiceInternalError(err, file, line, "Email_FailedSend", err.Error(), map[string]interface{}{
-			"Email":   to,
-			"Payload": pay,
-		})
+		return internal.WrapErrorf(err, internal.ErrorCodeInternal, "Failed to send email")
 	}
 	return nil
 }
