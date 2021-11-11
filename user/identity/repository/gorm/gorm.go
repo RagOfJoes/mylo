@@ -37,7 +37,7 @@ func (g *gormUserRepository) Get(u uuid.UUID, c bool) (*identity.Identity, error
 	return &f, nil
 }
 
-func (g *gormUserRepository) GetIdentifier(s string, c bool) (*identity.Identity, error) {
+func (g *gormUserRepository) GetWithIdentifier(s string, c bool) (*identity.Identity, error) {
 	// First check the credentials to make sure that the identifier provided is valid
 	var cred credential.Credential
 	var idenf credential.Identifier
