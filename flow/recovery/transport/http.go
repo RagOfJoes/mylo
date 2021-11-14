@@ -160,7 +160,7 @@ func (h *Http) submitFlow() gin.HandlerFunc {
 				Payload: submitted,
 			})
 		default:
-			c.Error(internal.NewErrorf(internal.ErrorCodeNotFound, "%v", recovery.ErrInvalidExpiredFlow))
+			c.Error(internal.NewErrorf(internal.ErrorCodeNotFound, "%v", internal.ErrInvalidExpiredFlow))
 			return
 		}
 	}

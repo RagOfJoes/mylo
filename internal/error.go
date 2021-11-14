@@ -7,6 +7,8 @@ import (
 
 // Common errors
 var (
+	ErrInvalidExpiredFlow   = errors.New("Invalid or expired flow")
+	ErrFailedNanoID         = errors.New("Failed to generate nano id")
 	ErrAlreadyAuthenticated = errors.New("Cannot access this resource while logged in")
 	ErrUnauthorized         = errors.New("You must be logged in to access this resource")
 )

@@ -16,9 +16,17 @@ import (
 )
 
 var (
-	ErrInvalidExpiredFlow   = errors.New("Invalid or expired login flow")
 	ErrInvalidPaylod        = errors.New("Invalid identifier(s) or password provided")
 	ErrAlreadyAuthenticated = errors.New("Cannot access this resource while logged in")
+)
+
+type Status string
+
+const (
+	// Pending occurs when login flow is awaiting first factor ie. Password, Passwordless code
+	Pending Status = "Pending"
+	// Complete occurs when login has completed successfully
+	Complete Status = "Complete"
 )
 
 type Flow struct {
@@ -27,12 +35,14 @@ type Flow struct {
 	// relevant data from urls path or query. This can also be used to find locate
 	// or security issues.
 	RequestURL string `json:"-" gorm:"not null" validate:"required"`
+	// Status defines the current state of the flow
+	Status Status `json:"status" gorm:"not null" validate:"required"`
 	// FlowID defines the unique identifier that user's will use to access the flow
-	FlowID string `json:"-" gorm:"not null;uniqueIndex" validate:"required"`
+	FlowID string `json:"flow_id" gorm:"not null;uniqueIndex" validate:"required"`
 	// ExpiresAt defines the time when this flow will no longer be valid
 	ExpiresAt time.Time `json:"expires_at" gorm:"index;not null" validate:"required"`
-	// Form defines additional information required to continue with flow
-	Form form.Form `json:"form" gorm:"not null;type:json" validate:"required"`
+	// Form defines additional information required to continue with the flow
+	Form *form.Form `json:"form" gorm:"type:json" validate:"required_unless=Status Complete"`
 }
 
 // Payload defines the data required to complete the flow
@@ -149,7 +159,8 @@ func New(requestURL string) (*Flow, error) {
 	form := Form(action)
 	return &Flow{
 		FlowID:     flowID,
-		Form:       form,
+		Status:     Pending,
+		Form:       &form,
 		ExpiresAt:  expire,
 		RequestURL: requestURL,
 	}, nil
@@ -158,10 +169,16 @@ func New(requestURL string) (*Flow, error) {
 // Valid checks the validity of flow
 func (f *Flow) Valid() error {
 	if err := validate.Check(f); err != nil {
-		return internal.WrapErrorf(err, internal.ErrorCodeNotFound, "%v", ErrInvalidExpiredFlow)
+		return internal.NewErrorf(internal.ErrorCodeInternal, "%v", err)
 	}
-	if f.ExpiresAt.Before(time.Now()) {
-		return internal.NewErrorf(internal.ErrorCodeNotFound, "%v", ErrInvalidExpiredFlow)
+	if f.Status == Complete || f.ExpiresAt.Before(time.Now()) {
+		return internal.NewErrorf(internal.ErrorCodeInternal, "%v", internal.ErrInvalidExpiredFlow)
 	}
 	return nil
+}
+
+// Complete updates flow to Complete status
+func (f *Flow) Complete() {
+	f.Form = nil
+	f.Status = Complete
 }

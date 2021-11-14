@@ -17,10 +17,9 @@ import (
 )
 
 var (
-	ErrInvalidPassword    = errors.New("Invalid password provided")
-	ErrInvalidExpiredFlow = errors.New("Invalid or expired login flow")
-	ErrNotAuthenticated   = errors.New("You must be logged in to access this resource")
-	ErrInvalidContact     = errors.New("Contact is either already verified or does not exist")
+	ErrInvalidPassword  = errors.New("Invalid password provided")
+	ErrNotAuthenticated = errors.New("You must be logged in to access this resource")
+	ErrInvalidContact   = errors.New("Contact is either already verified or does not exist")
 )
 
 type Status string
@@ -45,7 +44,7 @@ type Flow struct {
 	// Status defines the current state of the flow
 	Status Status `json:"status" gorm:"not null" validate:"required"`
 	// FlowID defines the unique identifier that user's will use to access the flow
-	FlowID string `json:"-" gorm:"not null;uniqueIndex" validate:"required"`
+	FlowID string `json:"flow_id" gorm:"not null;uniqueIndex" validate:"required"`
 	// VerifyID defines the unique identifier that user's will use to complete the flow
 	VerifyID string `json:"-" gorm:"not null;uniqueIndex" validate:"required"`
 	// ExpiresAt defines the time when this flow will no longer be valid
@@ -168,10 +167,10 @@ func NewSessionWarn(requestURL string, contactID uuid.UUID, identityID uuid.UUID
 // Valid checks the validity of the flow
 func (f *Flow) Valid() error {
 	if err := validate.Check(f); err != nil {
-		return internal.WrapErrorf(err, internal.ErrorCodeNotFound, "%v", ErrInvalidExpiredFlow)
+		return internal.NewErrorf(internal.ErrorCodeInternal, "%v", err)
 	}
 	if f.Status == Complete || f.ExpiresAt.Before(time.Now()) {
-		return internal.NewErrorf(internal.ErrorCodeNotFound, "%v", ErrInvalidExpiredFlow)
+		return internal.NewErrorf(internal.ErrorCodeInternal, "%v", internal.ErrInvalidExpiredFlow)
 	}
 	return nil
 }
@@ -192,6 +191,6 @@ func (f *Flow) Next() error {
 		f.Status = Complete
 		return nil
 	default:
-		return internal.NewErrorf(internal.ErrorCodeNotFound, "%v", ErrInvalidExpiredFlow)
+		return internal.NewErrorf(internal.ErrorCodeInternal, "%v", internal.ErrInvalidExpiredFlow)
 	}
 }

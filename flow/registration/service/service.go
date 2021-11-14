@@ -40,22 +40,22 @@ func (s *service) New(requestURL string) (*registration.Flow, error) {
 
 func (s *service) Find(flowID string) (*registration.Flow, error) {
 	if flowID == "" {
-		return nil, internal.NewErrorf(internal.ErrorCodeNotFound, "%v", registration.ErrInvalidExpiredFlow)
+		return nil, internal.NewErrorf(internal.ErrorCodeNotFound, "%v", internal.ErrInvalidExpiredFlow)
 	}
 
 	flow, err := s.r.GetByFlowID(flowID)
 	if err != nil || flow == nil {
-		return nil, internal.NewErrorf(internal.ErrorCodeNotFound, "%v", registration.ErrInvalidExpiredFlow)
+		return nil, internal.NewErrorf(internal.ErrorCodeNotFound, "%v", internal.ErrInvalidExpiredFlow)
 	}
 	if err := flow.Valid(); err != nil {
-		return nil, err
+		return nil, internal.WrapErrorf(err, internal.ErrorCodeNotFound, "%v", internal.ErrInvalidExpiredFlow)
 	}
 	return flow, nil
 }
 
 func (s *service) Submit(flow registration.Flow, payload registration.Payload) (*identity.Identity, error) {
 	if err := flow.Valid(); err != nil {
-		return nil, internal.NewErrorf(internal.ErrorCodeNotFound, "%v", registration.ErrInvalidExpiredFlow)
+		return nil, internal.WrapErrorf(err, internal.ErrorCodeNotFound, "%v", internal.ErrInvalidExpiredFlow)
 	}
 	if err := validate.Check(payload); err != nil {
 		return nil, internal.NewErrorf(internal.ErrorCodeInvalidArgument, "%v", err)
@@ -116,10 +116,10 @@ func (s *service) Submit(flow registration.Flow, payload registration.Payload) (
 		s.is.Delete(newUser.ID.String(), true)
 		return nil, err
 	}
-	// If everything passes then delete flow
-	// TODO: Capture error, if any, here
-	go func() {
-		s.r.Delete(flow.ID)
-	}()
+	// Complete the flow
+	flow.Complete()
+	if _, err := s.r.Update(flow); err != nil {
+		return nil, internal.WrapErrorf(err, internal.ErrorCodeInternal, "Failed to update registration flow: %s", flow.ID)
+	}
 	return newUser, nil
 }
