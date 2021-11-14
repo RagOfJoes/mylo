@@ -130,7 +130,7 @@ func (s *Session) Valid() error {
 	if s.State == Authenticated && s.ExpiresAt == nil {
 		return internal.NewErrorf(internal.ErrorCodeInternal, "%v", ErrInvalidSession)
 	}
-	if s.ExpiresAt.Before(time.Now()) {
+	if s.ExpiresAt != nil && s.ExpiresAt.Before(time.Now()) {
 		return internal.NewErrorf(internal.ErrorCodeInternal, "%v", ErrInvalidSession)
 	}
 	return nil
