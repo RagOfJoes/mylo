@@ -65,27 +65,27 @@ func (s *service) NewSessionWarn(identity identity.Identity, contact contact.Con
 
 func (s *service) Find(id string, identity identity.Identity) (*verification.Flow, error) {
 	if id == "" {
-		return nil, internal.NewErrorf(internal.ErrorCodeNotFound, "%v", verification.ErrInvalidExpiredFlow)
+		return nil, internal.NewErrorf(internal.ErrorCodeNotFound, "%v", internal.ErrInvalidExpiredFlow)
 	}
 
 	flow, err := s.r.GetByFlowIDOrVerifyID(id)
 	if err != nil || flow == nil {
-		return nil, internal.WrapErrorf(err, internal.ErrorCodeNotFound, "%v", verification.ErrInvalidExpiredFlow)
+		return nil, internal.WrapErrorf(err, internal.ErrorCodeNotFound, "%v", internal.ErrInvalidExpiredFlow)
 	}
 	if err := flow.Valid(); err != nil {
-		return nil, err
+		return nil, internal.WrapErrorf(err, internal.ErrorCodeNotFound, "%v", internal.ErrInvalidExpiredFlow)
 	}
 	if !flow.BelongsTo(identity.ID) {
-		return nil, internal.NewErrorf(internal.ErrorCodeNotFound, "%v", verification.ErrInvalidExpiredFlow)
+		return nil, internal.NewErrorf(internal.ErrorCodeNotFound, "%v", internal.ErrInvalidExpiredFlow)
 	}
 	switch flow.Status {
 	case verification.SessionWarn:
 		if flow.FlowID != id {
-			return nil, internal.NewErrorf(internal.ErrorCodeNotFound, "%v", verification.ErrInvalidExpiredFlow)
+			return nil, internal.NewErrorf(internal.ErrorCodeNotFound, "%v", internal.ErrInvalidExpiredFlow)
 		}
 	case verification.LinkPending:
 		if flow.VerifyID != id {
-			return nil, internal.NewErrorf(internal.ErrorCodeNotFound, "%v", verification.ErrInvalidExpiredFlow)
+			return nil, internal.NewErrorf(internal.ErrorCodeNotFound, "%v", internal.ErrInvalidExpiredFlow)
 		}
 	}
 	return flow, nil
@@ -93,10 +93,10 @@ func (s *service) Find(id string, identity identity.Identity) (*verification.Flo
 
 func (s *service) SubmitSessionWarn(flow verification.Flow, identity identity.Identity, payload verification.SessionWarnPayload) (*verification.Flow, error) {
 	if err := flow.Valid(); err != nil {
-		return nil, err
+		return nil, internal.WrapErrorf(err, internal.ErrorCodeNotFound, "%v", internal.ErrInvalidExpiredFlow)
 	}
 	if !flow.BelongsTo(identity.ID) {
-		return nil, internal.NewErrorf(internal.ErrorCodeNotFound, "%v", verification.ErrInvalidExpiredFlow)
+		return nil, internal.NewErrorf(internal.ErrorCodeNotFound, "%v", internal.ErrInvalidExpiredFlow)
 	}
 	if err := validate.Check(payload); err != nil {
 		return nil, internal.NewErrorf(internal.ErrorCodeInvalidArgument, "%v", err)
@@ -119,10 +119,10 @@ func (s *service) SubmitSessionWarn(flow verification.Flow, identity identity.Id
 
 func (s *service) Verify(flow verification.Flow, identity identity.Identity) (*verification.Flow, error) {
 	if err := flow.Valid(); err != nil {
-		return nil, err
+		return nil, internal.WrapErrorf(err, internal.ErrorCodeNotFound, "%v", internal.ErrInvalidExpiredFlow)
 	}
 	if !flow.BelongsTo(identity.ID) {
-		return nil, internal.NewErrorf(internal.ErrorCodeNotFound, "%v", verification.ErrInvalidExpiredFlow)
+		return nil, internal.NewErrorf(internal.ErrorCodeNotFound, "%v", internal.ErrInvalidExpiredFlow)
 	}
 
 	for idx, cont := range identity.Contacts {

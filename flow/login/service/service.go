@@ -39,15 +39,15 @@ func (s *service) New(requestURL string) (*login.Flow, error) {
 
 func (s *service) Find(flowID string) (*login.Flow, error) {
 	if flowID == "" {
-		return nil, internal.NewErrorf(internal.ErrorCodeNotFound, "%v", login.ErrInvalidExpiredFlow)
+		return nil, internal.NewErrorf(internal.ErrorCodeNotFound, "%v", internal.ErrInvalidExpiredFlow)
 	}
 
 	flow, err := s.r.GetByFlowID(flowID)
 	if err != nil || flow == nil {
-		return nil, internal.NewErrorf(internal.ErrorCodeNotFound, "%v", login.ErrInvalidExpiredFlow)
+		return nil, internal.NewErrorf(internal.ErrorCodeNotFound, "%v", internal.ErrInvalidExpiredFlow)
 	}
 	if err := flow.Valid(); err != nil {
-		return nil, err
+		return nil, internal.WrapErrorf(err, internal.ErrorCodeNotFound, "%v", internal.ErrInvalidExpiredFlow)
 	}
 	return flow, nil
 }
@@ -55,7 +55,7 @@ func (s *service) Find(flowID string) (*login.Flow, error) {
 // TODO: Add delay to mitigate time attacks
 func (s *service) Submit(flow login.Flow, payload login.Payload) (*identity.Identity, error) {
 	if err := flow.Valid(); err != nil {
-		return nil, err
+		return nil, internal.WrapErrorf(err, internal.ErrorCodeNotFound, "%v", internal.ErrInvalidExpiredFlow)
 	}
 	if err := validate.Check(payload); err != nil {
 		return nil, internal.WrapErrorf(err, internal.ErrorCodeInvalidArgument, "%v", login.ErrInvalidPaylod)
@@ -71,10 +71,10 @@ func (s *service) Submit(flow login.Flow, payload login.Payload) (*identity.Iden
 	if err := s.cs.ComparePassword(id.ID, payload.Password); err != nil {
 		return nil, internal.WrapErrorf(err, internal.ErrorCodeInvalidArgument, "%v", login.ErrInvalidPaylod)
 	}
-	// If everything passes then delete flow
-	// TODO: Capture error, if any, here
-	go func() {
-		s.r.Delete(flow.ID)
-	}()
+	// Complete the flow
+	flow.Complete()
+	if _, err := s.r.Update(flow); err != nil {
+		return nil, internal.WrapErrorf(err, internal.ErrorCodeInternal, "Failed to update login flow: %s", flow.ID)
+	}
 	return id, nil
 }

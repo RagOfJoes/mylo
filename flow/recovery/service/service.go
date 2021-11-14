@@ -38,24 +38,24 @@ func (s *service) New(requestURL string) (*recovery.Flow, error) {
 
 func (s *service) Find(id string) (*recovery.Flow, error) {
 	if id == "" {
-		return nil, internal.NewErrorf(internal.ErrorCodeNotFound, "%v", recovery.ErrInvalidExpiredFlow)
+		return nil, internal.NewErrorf(internal.ErrorCodeNotFound, "%v", internal.ErrInvalidExpiredFlow)
 	}
 
 	flow, err := s.r.GetByFlowIDOrRecoverID(id)
 	if err != nil || flow == nil {
-		return nil, internal.NewErrorf(internal.ErrorCodeNotFound, "%v", recovery.ErrInvalidExpiredFlow)
+		return nil, internal.NewErrorf(internal.ErrorCodeNotFound, "%v", internal.ErrInvalidExpiredFlow)
 	}
 	if err := flow.Valid(); err != nil {
-		return nil, err
+		return nil, internal.WrapErrorf(err, internal.ErrorCodeNotFound, "%v", internal.ErrInvalidExpiredFlow)
 	}
 	switch flow.Status {
 	case recovery.IdentifierPending:
 		if flow.FlowID != id {
-			return nil, internal.NewErrorf(internal.ErrorCodeNotFound, "%v", recovery.ErrInvalidExpiredFlow)
+			return nil, internal.NewErrorf(internal.ErrorCodeNotFound, "%v", internal.ErrInvalidExpiredFlow)
 		}
 	case recovery.LinkPending:
 		if flow.RecoverID != id {
-			return nil, internal.NewErrorf(internal.ErrorCodeNotFound, "%v", recovery.ErrInvalidExpiredFlow)
+			return nil, internal.NewErrorf(internal.ErrorCodeNotFound, "%v", internal.ErrInvalidExpiredFlow)
 		}
 	}
 	return flow, nil
@@ -63,10 +63,10 @@ func (s *service) Find(id string) (*recovery.Flow, error) {
 
 func (s *service) SubmitIdentifier(flow recovery.Flow, payload recovery.IdentifierPayload) (*recovery.Flow, error) {
 	if err := flow.Valid(); err != nil {
-		return nil, err
+		return nil, internal.WrapErrorf(err, internal.ErrorCodeNotFound, "%v", internal.ErrInvalidExpiredFlow)
 	}
 	if flow.Status != recovery.IdentifierPending {
-		return nil, internal.NewErrorf(internal.ErrorCodeNotFound, "%v", recovery.ErrInvalidExpiredFlow)
+		return nil, internal.NewErrorf(internal.ErrorCodeNotFound, "%v", internal.ErrInvalidExpiredFlow)
 	}
 	if err := validate.Check(payload); err != nil {
 		return nil, internal.WrapErrorf(err, internal.ErrorCodeInvalidArgument, "%v", recovery.ErrInvalidIdentifierPaylod)
@@ -95,10 +95,10 @@ func (s *service) SubmitIdentifier(flow recovery.Flow, payload recovery.Identifi
 
 func (s *service) SubmitUpdatePassword(flow recovery.Flow, payload recovery.SubmitPayload) (*recovery.Flow, error) {
 	if err := flow.Valid(); err != nil {
-		return nil, internal.WrapErrorf(err, internal.ErrorCodeNotFound, "%v", recovery.ErrInvalidExpiredFlow)
+		return nil, internal.WrapErrorf(err, internal.ErrorCodeNotFound, "%v", internal.ErrInvalidExpiredFlow)
 	}
 	if flow.Status != recovery.LinkPending {
-		return nil, internal.NewErrorf(internal.ErrorCodeNotFound, "%v", recovery.ErrInvalidExpiredFlow)
+		return nil, internal.NewErrorf(internal.ErrorCodeNotFound, "%v", internal.ErrInvalidExpiredFlow)
 	}
 	if err := validate.Check(payload); err != nil {
 		return nil, internal.NewErrorf(internal.ErrorCodeInvalidArgument, err.Error())

@@ -16,7 +16,6 @@ import (
 
 var (
 	ErrInvalidIdentifierPaylod = errors.New("Invalid identifier provided")
-	ErrInvalidExpiredFlow      = errors.New("Invalid or expired recovery flow")
 	ErrAccountDoesNotExist     = errors.New("Account with identifier does not exist")
 	ErrAlreadyAuthenticated    = errors.New("Cannot access this resource while logged in")
 )
@@ -25,7 +24,7 @@ type Status string
 
 const (
 	// IdentifierPending occurs when the flow has just been initialized and must now submit an identifier
-	IdentifierPending Status = "Pending"
+	IdentifierPending Status = "IdentifierPending"
 	// Fail occurs when an invalid identifier has been provided
 	Fail Status = "Fail"
 	// LinkPending occurs when the link has been sent via email/sms and is waiting to be activated
@@ -43,7 +42,7 @@ type Flow struct {
 	// Status defines the current state of the flow
 	Status Status `json:"status" gorm:"not null" validate:"required"`
 	// FlowID defines the unique identifier that user's will use to access the flow
-	FlowID string `json:"-" gorm:"not null;uniqueIndex" validate:"required"`
+	FlowID string `json:"flow_id" gorm:"not null;uniqueIndex" validate:"required"`
 	// RecoverID defines the unique identifier that user's will use to complete the flow
 	RecoverID string `json:"-" gorm:"not null;uniqueIndex" validate:"required"`
 	// ExpiresAt defines the time when this flow will no longer be valid
@@ -175,16 +174,16 @@ func New(requestURL string) (*Flow, error) {
 	}, nil
 }
 
-// Valid checks the validity of the flow
+// Valid checks the validity of flow, if the flow is expired or completed we also return error
 func (f *Flow) Valid() error {
 	if err := validate.Check(f); err != nil {
-		return internal.WrapErrorf(err, internal.ErrorCodeNotFound, "%v", ErrInvalidExpiredFlow)
+		return internal.WrapErrorf(err, internal.ErrorCodeInvalidArgument, "%v", internal.ErrInvalidExpiredFlow)
 	}
 	if f.Status == Fail || f.Status == Complete || f.ExpiresAt.Before(time.Now()) {
-		return internal.NewErrorf(internal.ErrorCodeNotFound, "%v", ErrInvalidExpiredFlow)
+		return internal.NewErrorf(internal.ErrorCodeInvalidArgument, "%v", internal.ErrInvalidExpiredFlow)
 	}
 	if f.Status == LinkPending && f.IdentityID == nil {
-		return internal.NewErrorf(internal.ErrorCodeNotFound, "%v", ErrInvalidExpiredFlow)
+		return internal.NewErrorf(internal.ErrorCodeInvalidArgument, "%v", internal.ErrInvalidExpiredFlow)
 	}
 	return nil
 }
@@ -204,7 +203,7 @@ func (f *Flow) Complete() {
 // LinkPending updates flow to LinkPending status
 func (f *Flow) LinkPending(identityID uuid.UUID) error {
 	if f.Status != IdentifierPending {
-		return internal.NewErrorf(internal.ErrorCodeNotFound, "%v", ErrInvalidExpiredFlow)
+		return internal.NewErrorf(internal.ErrorCodeInvalidArgument, "%v", internal.ErrInvalidExpiredFlow)
 	}
 
 	cfg := config.Get()
