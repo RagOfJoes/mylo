@@ -1,6 +1,8 @@
 package gorm
 
 import (
+	"context"
+
 	"github.com/RagOfJoes/idp/flow/registration"
 	"github.com/gofrs/uuid"
 	"gorm.io/gorm"
@@ -14,40 +16,40 @@ func NewGormRegistrationRepository(d *gorm.DB) registration.Repository {
 	return &gormRegistrationRepository{DB: d}
 }
 
-func (g *gormRegistrationRepository) Create(r registration.Flow) (*registration.Flow, error) {
-	n := r
-	if err := g.DB.Create(&n).Error; err != nil {
+func (g *gormRegistrationRepository) Create(ctx context.Context, newFlow registration.Flow) (*registration.Flow, error) {
+	created := newFlow
+	if err := g.DB.Create(&created).Error; err != nil {
 		return nil, err
 	}
-	return &n, nil
+	return &created, nil
 }
 
-func (g *gormRegistrationRepository) Get(i string) (*registration.Flow, error) {
-	var n registration.Flow
-	if err := g.DB.First(&n, "id = ?", i).Error; err != nil {
+func (g *gormRegistrationRepository) Get(ctx context.Context, id string) (*registration.Flow, error) {
+	var flow registration.Flow
+	if err := g.DB.First(&flow, "id = ?", id).Error; err != nil {
 		return nil, err
 	}
-	return &n, nil
+	return &flow, nil
 }
 
-func (g *gormRegistrationRepository) GetByFlowID(i string) (*registration.Flow, error) {
-	var n registration.Flow
-	if err := g.DB.First(&n, "flow_id = ?", i).Error; err != nil {
+func (g *gormRegistrationRepository) GetByFlowID(ctx context.Context, flowID string) (*registration.Flow, error) {
+	var flow registration.Flow
+	if err := g.DB.First(&flow, "flow_id = ?", flowID).Error; err != nil {
 		return nil, err
 	}
-	return &n, nil
+	return &flow, nil
 }
 
-func (g *gormRegistrationRepository) Update(r registration.Flow) (*registration.Flow, error) {
-	n := r
-	if err := g.DB.Save(&n).Error; err != nil {
+func (g *gormRegistrationRepository) Update(ctx context.Context, updateFlow registration.Flow) (*registration.Flow, error) {
+	updated := updateFlow
+	if err := g.DB.Save(&updated).Error; err != nil {
 		return nil, err
 	}
-	return &n, nil
+	return &updated, nil
 }
 
-func (g *gormRegistrationRepository) Delete(i uuid.UUID) error {
-	if err := g.DB.Where("id = ?", i.String()).Delete(registration.Flow{}).Error; err != nil && err != gorm.ErrRecordNotFound {
+func (g *gormRegistrationRepository) Delete(ctx context.Context, id uuid.UUID) error {
+	if err := g.DB.Where("id = ?", id.String()).Delete(registration.Flow{}).Error; err != nil && err != gorm.ErrRecordNotFound {
 		return err
 	}
 	return nil

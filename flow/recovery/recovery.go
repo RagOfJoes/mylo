@@ -1,6 +1,7 @@
 package recovery
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"time"
@@ -69,29 +70,29 @@ type SubmitPayload struct {
 // Repository defines
 type Repository interface {
 	// Create creates a new flow
-	Create(newFlow Flow) (*Flow, error)
+	Create(ctx context.Context, newFlow Flow) (*Flow, error)
 	// Get retrieves a flow via ID
-	Get(id uuid.UUID) (*Flow, error)
+	Get(ctx context.Context, id uuid.UUID) (*Flow, error)
 	// GetByFlowIDOrRecoverID retrieves a flow via FlowID or RecoverID
-	GetByFlowIDOrRecoverID(id string) (*Flow, error)
+	GetByFlowIDOrRecoverID(ctx context.Context, id string) (*Flow, error)
 	// GetByIdentityID retrieves a flow via identity ID
-	GetByIdentityID(identityID uuid.UUID) (*Flow, error)
+	GetByIdentityID(ctx context.Context, identityID uuid.UUID) (*Flow, error)
 	// Update updates a flow
-	Update(updateFlow Flow) (*Flow, error)
+	Update(ctx context.Context, updateFlow Flow) (*Flow, error)
 	// Delete deletes a flow via ID
-	Delete(id uuid.UUID) error
+	Delete(ctx context.Context, id uuid.UUID) error
 }
 
 // Service defines
 type Service interface {
 	// New creates a new flow
-	New(requestURL string) (*Flow, error)
+	New(ctx context.Context, requestURL string) (*Flow, error)
 	// Find retrieves flow via FlowID or RecoverID
-	Find(id string) (*Flow, error)
+	Find(ctx context.Context, id string) (*Flow, error)
 	// SubmitIdentifier requires the `IdentifierPending` status and the `IdentifierPayload` to move the flow to the next step. An email should also be sent to all backup contacts in transport implementation
-	SubmitIdentifier(flow Flow, payload IdentifierPayload) (*Flow, error)
+	SubmitIdentifier(ctx context.Context, flow Flow, payload IdentifierPayload) (*Flow, error)
 	// SubmitUpdatePassword completes the flow
-	SubmitUpdatePassword(flow Flow, payload SubmitPayload) (*Flow, error)
+	SubmitUpdatePassword(ctx context.Context, flow Flow, payload SubmitPayload) (*Flow, error)
 }
 
 // TableName overrides GORM's table name

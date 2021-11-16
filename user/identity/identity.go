@@ -1,6 +1,7 @@
 package identity
 
 import (
+	"context"
 	"errors"
 
 	"github.com/RagOfJoes/idp/internal"
@@ -30,22 +31,22 @@ type Identity struct {
 
 type Repository interface {
 	// Create creates a new identity
-	Create(Identity) (*Identity, error)
+	Create(ctx context.Context, newIdentity Identity) (*Identity, error)
 	// Get retrieves an identity with id
-	Get(id uuid.UUID, critical bool) (*Identity, error)
+	Get(ctx context.Context, id uuid.UUID, critical bool) (*Identity, error)
 	// GetWithIdentifier retrieves an identity with identifier
-	GetWithIdentifier(identifier string, critical bool) (*Identity, error)
+	GetWithIdentifier(ctx context.Context, identifier string, critical bool) (*Identity, error)
 	// Update updates an identity
-	Update(Identity) (*Identity, error)
+	Update(ctx context.Context, updateIdentity Identity) (*Identity, error)
 	// Delete deletes an identity
-	Delete(id uuid.UUID, permanent bool) error
+	Delete(ctx context.Context, id uuid.UUID, permanent bool) error
 }
 
 type Service interface {
 	// Create creates an identity
-	Create(user Identity, username string, password string) (*Identity, error)
+	Create(ctx context.Context, user Identity, username string, password string) (*Identity, error)
 	// Find finds an identity with either its id or an identifier
-	Find(id string) (*Identity, error)
+	Find(ctx context.Context, id string) (*Identity, error)
 	// Delete deletes an identity
-	Delete(id string, permanent bool) error
+	Delete(ctx context.Context, id string, permanent bool) error
 }

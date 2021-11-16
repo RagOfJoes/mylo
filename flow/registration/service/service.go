@@ -1,6 +1,8 @@
 package service
 
 import (
+	"context"
+
 	"github.com/RagOfJoes/idp/flow/registration"
 	"github.com/RagOfJoes/idp/internal"
 	"github.com/RagOfJoes/idp/internal/validate"
@@ -26,24 +28,24 @@ func NewRegistrationService(r registration.Repository, cos contact.Service, cs c
 	}
 }
 
-func (s *service) New(requestURL string) (*registration.Flow, error) {
+func (s *service) New(ctx context.Context, requestURL string) (*registration.Flow, error) {
 	newFlow, err := registration.New(requestURL)
 	if err != nil {
 		return nil, err
 	}
-	created, err := s.r.Create(*newFlow)
+	created, err := s.r.Create(ctx, *newFlow)
 	if err != nil {
 		return nil, internal.WrapErrorf(err, internal.ErrorCodeInternal, "Failed to create new registration flow")
 	}
 	return created, nil
 }
 
-func (s *service) Find(flowID string) (*registration.Flow, error) {
+func (s *service) Find(ctx context.Context, flowID string) (*registration.Flow, error) {
 	if flowID == "" {
 		return nil, internal.NewErrorf(internal.ErrorCodeNotFound, "%v", internal.ErrInvalidExpiredFlow)
 	}
 
-	flow, err := s.r.GetByFlowID(flowID)
+	flow, err := s.r.GetByFlowID(ctx, flowID)
 	if err != nil || flow == nil {
 		return nil, internal.NewErrorf(internal.ErrorCodeNotFound, "%v", internal.ErrInvalidExpiredFlow)
 	}
@@ -53,7 +55,7 @@ func (s *service) Find(flowID string) (*registration.Flow, error) {
 	return flow, nil
 }
 
-func (s *service) Submit(flow registration.Flow, payload registration.Payload) (*identity.Identity, error) {
+func (s *service) Submit(ctx context.Context, flow registration.Flow, payload registration.Payload) (*identity.Identity, error) {
 	if err := flow.Valid(); err != nil {
 		return nil, internal.WrapErrorf(err, internal.ErrorCodeNotFound, "%v", internal.ErrInvalidExpiredFlow)
 	}
@@ -68,7 +70,7 @@ func (s *service) Submit(flow registration.Flow, payload registration.Payload) (
 		LastName:  payload.LastName,
 	}
 	// Create new identity
-	newUser, err := s.is.Create(tempIdentity, payload.Username, payload.Password)
+	newUser, err := s.is.Create(ctx, tempIdentity, payload.Username, payload.Password)
 	if err != nil {
 		return nil, err
 	}
@@ -78,7 +80,7 @@ func (s *service) Submit(flow registration.Flow, payload registration.Payload) (
 	// - Use Credential Service to create new password credential for user
 	var eg errgroup.Group
 	eg.Go(func() error {
-		vc, err := s.cos.Add([]contact.Contact{
+		vc, err := s.cos.Add(ctx, []contact.Contact{
 			{
 				IdentityID: newUser.ID,
 				State:      contact.Sent,
@@ -93,7 +95,7 @@ func (s *service) Submit(flow registration.Flow, payload registration.Payload) (
 		return nil
 	})
 	eg.Go(func() error {
-		cr, err := s.cs.CreatePassword(newUser.ID, payload.Password, []credential.Identifier{
+		cr, err := s.cs.CreatePassword(ctx, newUser.ID, payload.Password, []credential.Identifier{
 			{
 				Type:  "email",
 				Value: payload.Email,
@@ -113,12 +115,12 @@ func (s *service) Submit(flow registration.Flow, payload registration.Payload) (
 	// Check if any of the concurrent actions error'd out and if so
 	// perform a cascade delete on the user
 	if err := eg.Wait(); err != nil {
-		s.is.Delete(newUser.ID.String(), true)
+		s.is.Delete(ctx, newUser.ID.String(), true)
 		return nil, err
 	}
 	// Complete the flow
 	flow.Complete()
-	if _, err := s.r.Update(flow); err != nil {
+	if _, err := s.r.Update(ctx, flow); err != nil {
 		return nil, internal.WrapErrorf(err, internal.ErrorCodeInternal, "Failed to update registration flow: %s", flow.ID)
 	}
 	return newUser, nil

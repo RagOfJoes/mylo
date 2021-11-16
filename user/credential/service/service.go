@@ -1,6 +1,7 @@
 package service
 
 import (
+	"context"
 	"encoding/json"
 	"time"
 
@@ -21,7 +22,7 @@ func NewCredentialService(cr credential.Repository) credential.Service {
 	}
 }
 
-func (s *service) CreatePassword(uid uuid.UUID, password string, identifiers []credential.Identifier) (*credential.Credential, error) {
+func (s *service) CreatePassword(ctx context.Context, uid uuid.UUID, password string, identifiers []credential.Identifier) (*credential.Credential, error) {
 	cfg := config.Get()
 	// Get inputs to test password strength
 	var ids []string
@@ -53,15 +54,15 @@ func (s *service) CreatePassword(uid uuid.UUID, password string, identifiers []c
 		Values:      string(jsonPass[:]),
 	}
 	// Create Credential in repository
-	created, err := s.cr.Create(newCredential)
+	created, err := s.cr.Create(ctx, newCredential)
 	if err != nil {
 		return nil, internal.WrapErrorf(err, internal.ErrorCodeInternal, "Failed to create password credential")
 	}
 	return created, nil
 }
 
-func (s *service) ComparePassword(uid uuid.UUID, password string) error {
-	found, err := s.cr.GetWithIdentityID(credential.Password, uid)
+func (s *service) ComparePassword(ctx context.Context, uid uuid.UUID, password string) error {
+	found, err := s.cr.GetWithIdentityID(ctx, credential.Password, uid)
 	if err != nil {
 		return internal.WrapErrorf(err, internal.ErrorCodeInvalidArgument, "%v", credential.ErrInvalidIdentifierPassword)
 	}
@@ -79,17 +80,17 @@ func (s *service) ComparePassword(uid uuid.UUID, password string) error {
 	return nil
 }
 
-func (s *service) FindPasswordWithIdentifier(identifier string) (*credential.Credential, error) {
-	credential, err := s.cr.GetWithIdentifier(credential.Password, identifier)
+func (s *service) FindPasswordWithIdentifier(ctx context.Context, identifier string) (*credential.Credential, error) {
+	credential, err := s.cr.GetWithIdentifier(ctx, credential.Password, identifier)
 	if err != nil {
 		return nil, internal.WrapErrorf(err, internal.ErrorCodeInvalidArgument, "Invalid identifier provided")
 	}
 	return credential, nil
 }
 
-func (s *service) UpdatePassword(uid uuid.UUID, newPassword string) (*credential.Credential, error) {
+func (s *service) UpdatePassword(ctx context.Context, uid uuid.UUID, newPassword string) (*credential.Credential, error) {
 	// Find existing credential
-	cred, err := s.cr.GetWithIdentityID(credential.Password, uid)
+	cred, err := s.cr.GetWithIdentityID(ctx, credential.Password, uid)
 	// TODO: In this scenario should we just create a new password credential behind the scene?
 	if err != nil {
 		return nil, internal.WrapErrorf(err, internal.ErrorCodeNotFound, "The account doesn't exist or the account doesn't have a password credential setup")
@@ -136,11 +137,11 @@ func (s *service) UpdatePassword(uid uuid.UUID, newPassword string) (*credential
 	uc.Values = string(jsonPass[:])
 	uc.Identifiers = cred.Identifiers
 	// Delete previous password credential
-	if err := s.cr.Delete(cred.ID); err != nil {
+	if err := s.cr.Delete(ctx, cred.ID); err != nil {
 		return nil, internal.WrapErrorf(err, internal.ErrorCodeInternal, "Failed to update password credential: %s", cred.ID)
 	}
 	// Create new
-	updated, err := s.cr.Create(uc)
+	updated, err := s.cr.Create(ctx, uc)
 	if err != nil {
 		return nil, internal.WrapErrorf(err, internal.ErrorCodeInternal, "Failed to update password credential: %s", cred.ID)
 	}
