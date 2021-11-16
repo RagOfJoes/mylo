@@ -1,6 +1,7 @@
 package credential
 
 import (
+	"context"
 	"errors"
 	"time"
 
@@ -65,26 +66,26 @@ type CredentialOIDC struct {
 
 type Repository interface {
 	// Create creates a new credential
-	Create(newCredential Credential) (*Credential, error)
+	Create(ctx context.Context, newCredential Credential) (*Credential, error)
 	// GetIdentifier retrieves an identifier
-	GetIdentifier(identifier string) (*Identifier, error)
+	GetIdentifier(ctx context.Context, identifier string) (*Identifier, error)
 	// GetWithIdentifier retrieves a credential with an identifier
-	GetWithIdentifier(credentialType CredentialType, identifier string) (*Credential, error)
+	GetWithIdentifier(ctx context.Context, credentialType CredentialType, identifier string) (*Credential, error)
 	// GetWithIdentityID retrieves a credential with an identity id
-	GetWithIdentityID(credentialType CredentialType, identityID uuid.UUID) (*Credential, error)
+	GetWithIdentityID(ctx context.Context, credentialType CredentialType, identityID uuid.UUID) (*Credential, error)
 	// Update updates a credential
-	Update(updateCredential Credential) (*Credential, error)
+	Update(ctx context.Context, updateCredential Credential) (*Credential, error)
 	// Delete deletes a credential via id
-	Delete(id uuid.UUID) error
+	Delete(ctx context.Context, id uuid.UUID) error
 }
 
 type Service interface {
 	// CreatePassword creates a password credential
-	CreatePassword(identityID uuid.UUID, password string, identifiers []Identifier) (*Credential, error)
+	CreatePassword(ctx context.Context, identityID uuid.UUID, password string, identifiers []Identifier) (*Credential, error)
 	// ComparePassword compares a password credential
-	ComparePassword(identityID uuid.UUID, password string) error
+	ComparePassword(ctx context.Context, identityID uuid.UUID, password string) error
 	// FindPasswordWithIdentifier finds a password with an identifier
-	FindPasswordWithIdentifier(Identifier string) (*Credential, error)
+	FindPasswordWithIdentifier(ctx context.Context, Identifier string) (*Credential, error)
 	// UpdatePassword updates a password credential
-	UpdatePassword(identityID uuid.UUID, newPassword string) (*Credential, error)
+	UpdatePassword(ctx context.Context, identityID uuid.UUID, newPassword string) (*Credential, error)
 }

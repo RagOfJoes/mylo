@@ -1,6 +1,8 @@
 package gorm
 
 import (
+	"context"
+
 	"github.com/RagOfJoes/idp/user/contact"
 	"github.com/gofrs/uuid"
 	"gorm.io/gorm"
@@ -14,47 +16,47 @@ func NewGormContactRepository(d *gorm.DB) contact.Repository {
 	return &gormContactRepository{DB: d}
 }
 
-func (g *gormContactRepository) Create(v ...contact.Contact) ([]contact.Contact, error) {
-	n := v
-	if err := g.DB.CreateInBatches(n, len(n)).Error; err != nil {
+func (g *gormContactRepository) Create(ctx context.Context, contacts ...contact.Contact) ([]contact.Contact, error) {
+	clone := contacts
+	if err := g.DB.CreateInBatches(clone, len(clone)).Error; err != nil {
 		return nil, err
 	}
-	return n, nil
+	return clone, nil
 }
 
-func (g *gormContactRepository) Update(v contact.Contact) (*contact.Contact, error) {
-	u := v
-	if err := g.DB.Save(&u).Error; err != nil {
+func (g *gormContactRepository) Update(ctx context.Context, updateContact contact.Contact) (*contact.Contact, error) {
+	clone := updateContact
+	if err := g.DB.Save(&clone).Error; err != nil {
 		return nil, err
 	}
-	return &u, nil
+	return &clone, nil
 }
 
-func (g *gormContactRepository) Get(i uuid.UUID) (*contact.Contact, error) {
-	var v contact.Contact
-	if err := g.DB.Where("id = ?", i).First(&v).Error; err != nil {
+func (g *gormContactRepository) Get(ctx context.Context, contactID uuid.UUID) (*contact.Contact, error) {
+	var contact contact.Contact
+	if err := g.DB.Where("id = ?", contactID).First(&contact).Error; err != nil {
 		return nil, err
 	}
-	return &v, nil
+	return &contact, nil
 }
 
-func (g *gormContactRepository) GetByValue(s string) (*contact.Contact, error) {
-	var v contact.Contact
-	if err := g.DB.First(&v, "LOWER(v) = LOWER(?)", s).Error; err != nil {
+func (g *gormContactRepository) GetByValue(ctx context.Context, value string) (*contact.Contact, error) {
+	var contact contact.Contact
+	if err := g.DB.First(&contact, "LOWER(v) = LOWER(?)", value).Error; err != nil {
 		return nil, err
 	}
-	return &v, nil
+	return &contact, nil
 }
 
-func (g *gormContactRepository) Delete(i uuid.UUID) error {
-	if err := g.DB.Where("id = ?", i).Delete(contact.Contact{}).Error; err != nil && err != gorm.ErrRecordNotFound {
+func (g *gormContactRepository) Delete(ctx context.Context, contactID uuid.UUID) error {
+	if err := g.DB.Where("id = ?", contactID).Delete(contact.Contact{}).Error; err != nil && err != gorm.ErrRecordNotFound {
 		return err
 	}
 	return nil
 }
 
-func (g *gormContactRepository) DeleteAllUser(i uuid.UUID) error {
-	if err := g.DB.Where("identity_id = ?", i).Delete(contact.Contact{}).Error; err != nil && err != gorm.ErrRecordNotFound {
+func (g *gormContactRepository) DeleteAllUser(ctx context.Context, identityID uuid.UUID) error {
+	if err := g.DB.Where("identity_id = ?", identityID).Delete(contact.Contact{}).Error; err != nil && err != gorm.ErrRecordNotFound {
 		return err
 	}
 	return nil

@@ -22,7 +22,7 @@ func NewIdentityHttp(sh sessionHttp.Http, r *gin.Engine) {
 
 func (h *Http) me() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		sess, err := h.sh.Session(c.Request, c.Writer, true)
+		sess, err := h.sh.Session(c.Request.Context(), c.Request, c.Writer, true)
 		if err != nil || sess == nil {
 			c.Error(internal.WrapErrorf(err, internal.ErrorCodeUnauthorized, "%v", internal.ErrUnauthorized))
 			return

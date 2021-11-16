@@ -1,6 +1,7 @@
 package contact
 
 import (
+	"context"
 	"errors"
 	"time"
 
@@ -61,26 +62,23 @@ type Contact struct {
 
 type Repository interface {
 	// Create creates a new Contact
-	Create(...Contact) ([]Contact, error)
+	Create(ctx context.Context, contacts ...Contact) ([]Contact, error)
 	// Update updates a new Contact
-	Update(Contact) (*Contact, error)
-	// Get retrieves a single Contact given its
-	// id
-	Get(uuid.UUID) (*Contact, error)
-	// GetByValue retrieves a Contact given an address
-	// value
-	GetByValue(string) (*Contact, error)
+	Update(ctx context.Context, updateContact Contact) (*Contact, error)
+	// Get retrieves a single Contact given its id
+	Get(ctx context.Context, contactID uuid.UUID) (*Contact, error)
+	// GetByValue retrieves a Contact given an address value
+	GetByValue(ctx context.Context, valud string) (*Contact, error)
 	// Delete deletes a single Contact
-	Delete(uuid.UUID) error
-	// DeleteAllUser deletes all Contact of a User
-	// given an IdentityID
-	DeleteAllUser(uuid.UUID) error
+	Delete(ctx context.Context, contactID uuid.UUID) error
+	// DeleteAllUser deletes all Contact of a User given an IdentityID
+	DeleteAllUser(ctx context.Context, identityID uuid.UUID) error
 }
 
 type Service interface {
 	// Find finds a single contact based on the value provided
-	Find(value string) (*Contact, error)
+	Find(ctx context.Context, value string) (*Contact, error)
 	// Add adds a single or a collection of contacts. This should ideally
 	// merge new and old Contact that a user owns
-	Add(contacts ...Contact) ([]Contact, error)
+	Add(ctx context.Context, contacts ...Contact) ([]Contact, error)
 }

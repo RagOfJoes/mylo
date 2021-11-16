@@ -1,6 +1,8 @@
 package service
 
 import (
+	"context"
+
 	"github.com/RagOfJoes/idp/internal"
 	"github.com/RagOfJoes/idp/user/identity"
 	goaway "github.com/TwiN/go-away"
@@ -18,7 +20,7 @@ func NewIdentityService(ir identity.Repository) identity.Service {
 	}
 }
 
-func (s *service) Create(i identity.Identity, username string, password string) (*identity.Identity, error) {
+func (s *service) Create(ctx context.Context, newIdentity identity.Identity, username string, password string) (*identity.Identity, error) {
 	// Check for profanity in username
 	if goaway.IsProfane(username) {
 		return nil, internal.NewErrorf(internal.ErrorCodeInvalidArgument, "%v", identity.ErrUsernameProfane)
@@ -27,7 +29,7 @@ func (s *service) Create(i identity.Identity, username string, password string) 
 	var eg errgroup.Group
 	var f *identity.Identity
 	eg.Go(func() error {
-		fi, err := s.ir.GetWithIdentifier(username, false)
+		fi, err := s.ir.GetWithIdentifier(ctx, username, false)
 		if err != nil {
 			return internal.WrapErrorf(err, internal.ErrorCodeInvalidArgument, "%v", identity.ErrInvalidIdentifierPassword)
 		}
@@ -35,7 +37,7 @@ func (s *service) Create(i identity.Identity, username string, password string) 
 		return nil
 	})
 	eg.Go(func() error {
-		fi, err := s.ir.GetWithIdentifier(i.Email, false)
+		fi, err := s.ir.GetWithIdentifier(ctx, newIdentity.Email, false)
 		if err != nil {
 			return internal.WrapErrorf(err, internal.ErrorCodeInvalidArgument, "%v", identity.ErrInvalidIdentifierPassword)
 		}
@@ -47,11 +49,11 @@ func (s *service) Create(i identity.Identity, username string, password string) 
 	}
 	// Instantiate new identity
 	builtUser := identity.Identity{
-		FirstName: i.FirstName,
-		LastName:  i.LastName,
-		Email:     i.Email,
+		FirstName: newIdentity.FirstName,
+		LastName:  newIdentity.LastName,
+		Email:     newIdentity.Email,
 	}
-	newUser, err := s.ir.Create(builtUser)
+	newUser, err := s.ir.Create(ctx, builtUser)
 	if err != nil {
 		return nil, internal.WrapErrorf(err, internal.ErrorCodeInternal, "Failed to create new identity")
 	}
@@ -59,16 +61,16 @@ func (s *service) Create(i identity.Identity, username string, password string) 
 	return newUser, nil
 }
 
-func (s *service) Find(id string) (*identity.Identity, error) {
+func (s *service) Find(ctx context.Context, id string) (*identity.Identity, error) {
 	uid, err := uuid.FromString(id)
 	if err == nil && uid != uuid.Nil {
-		f, err := s.ir.Get(uid, false)
+		f, err := s.ir.Get(ctx, uid, false)
 		if err != nil {
 			return nil, internal.WrapErrorf(err, internal.ErrorCodeInvalidArgument, "%v", identity.ErrInvalidIdentifierPassword)
 		}
 		return f, nil
 	}
-	f, err := s.ir.GetWithIdentifier(id, false)
+	f, err := s.ir.GetWithIdentifier(ctx, id, false)
 	if err != nil {
 		return nil, internal.WrapErrorf(err, internal.ErrorCodeInvalidArgument, "%v", identity.ErrInvalidIdentifierPassword)
 	}
@@ -76,12 +78,12 @@ func (s *service) Find(id string) (*identity.Identity, error) {
 }
 
 // Delete defines a delete function for User identity
-func (s *service) Delete(id string, perm bool) error {
+func (s *service) Delete(ctx context.Context, id string, perm bool) error {
 	uid, err := uuid.FromString(id)
 	if err != nil {
 		return internal.WrapErrorf(err, internal.ErrorCodeInternal, "Account with id %s does not exist", id)
 	}
-	if err := s.ir.Delete(uid, perm); err != nil {
+	if err := s.ir.Delete(ctx, uid, perm); err != nil {
 		return internal.WrapErrorf(err, internal.ErrorCodeInternal, "Failed to delete identity: %s", id)
 	}
 	return nil

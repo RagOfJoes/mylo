@@ -43,12 +43,13 @@ func NewRecoveryHttp(e email.Client, sh sessionHttp.Http, s recovery.Service, is
 
 func (h *Http) initFlow() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		if _, err := h.sh.Session(c.Request, c.Writer, true); err == nil {
+		ctx := c.Request.Context()
+		if _, err := h.sh.Session(ctx, c.Request, c.Writer, true); err == nil {
 			c.Error(internal.NewErrorf(internal.ErrorCodeForbidden, "%v", recovery.ErrAlreadyAuthenticated))
 			return
 		}
 
-		newFlow, err := h.s.New(transport.RequestURL(c.Request))
+		newFlow, err := h.s.New(ctx, transport.RequestURL(c.Request))
 		if err != nil {
 			c.Error(err)
 			return
@@ -63,13 +64,14 @@ func (h *Http) initFlow() gin.HandlerFunc {
 
 func (h *Http) getFlow() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		if _, err := h.sh.Session(c.Request, c.Writer, true); err == nil {
+		ctx := c.Request.Context()
+		if _, err := h.sh.Session(ctx, c.Request, c.Writer, true); err == nil {
 			c.Error(internal.NewErrorf(internal.ErrorCodeForbidden, "%v", recovery.ErrAlreadyAuthenticated))
 			return
 		}
 
 		id := c.Param("id")
-		flow, err := h.s.Find(id)
+		flow, err := h.s.Find(ctx, id)
 		if err != nil {
 			c.Error(err)
 			return
@@ -84,13 +86,14 @@ func (h *Http) getFlow() gin.HandlerFunc {
 
 func (h *Http) submitFlow() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		if _, err := h.sh.Session(c.Request, c.Writer, true); err == nil {
+		ctx := c.Request.Context()
+		if _, err := h.sh.Session(ctx, c.Request, c.Writer, true); err == nil {
 			c.Error(internal.NewErrorf(internal.ErrorCodeForbidden, "%v", recovery.ErrAlreadyAuthenticated))
 			return
 		}
 
 		id := c.Param("id")
-		flow, err := h.s.Find(id)
+		flow, err := h.s.Find(ctx, id)
 		if err != nil {
 			c.Error(err)
 			return
@@ -103,7 +106,7 @@ func (h *Http) submitFlow() gin.HandlerFunc {
 				c.Error(internal.WrapErrorf(err, internal.ErrorCodeInvalidArgument, "%v", recovery.ErrInvalidIdentifierPaylod))
 				return
 			}
-			submitted, err := h.s.SubmitIdentifier(*flow, payload)
+			submitted, err := h.s.SubmitIdentifier(ctx, *flow, payload)
 			if err != nil && !errors.Is(recovery.ErrAccountDoesNotExist, err) {
 				c.Error(err)
 				return
@@ -114,7 +117,7 @@ func (h *Http) submitFlow() gin.HandlerFunc {
 			go func(flow recovery.Flow) {
 				if submitted.Status == recovery.LinkPending {
 					var emails []string
-					identity, err := h.is.Find(submitted.IdentityID.String())
+					identity, err := h.is.Find(ctx, submitted.IdentityID.String())
 					if err != nil {
 						// TODO: Capture Error Here
 						return
@@ -149,7 +152,7 @@ func (h *Http) submitFlow() gin.HandlerFunc {
 				return
 			}
 
-			submitted, err := h.s.SubmitUpdatePassword(*flow, payload)
+			submitted, err := h.s.SubmitUpdatePassword(ctx, *flow, payload)
 			if err != nil {
 				c.Error(err)
 				return

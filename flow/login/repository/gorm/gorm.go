@@ -1,6 +1,8 @@
 package gorm
 
 import (
+	"context"
+
 	"github.com/RagOfJoes/idp/flow/login"
 	"github.com/gofrs/uuid"
 	"gorm.io/gorm"
@@ -14,40 +16,40 @@ func NewGormLoginRepository(d *gorm.DB) login.Repository {
 	return &gormLoginRepository{DB: d}
 }
 
-func (g *gormLoginRepository) Create(l login.Flow) (*login.Flow, error) {
-	n := l
-	if err := g.DB.Create(&n).Error; err != nil {
+func (g *gormLoginRepository) Create(ctx context.Context, newFlow login.Flow) (*login.Flow, error) {
+	created := newFlow
+	if err := g.DB.Create(&created).Error; err != nil {
 		return nil, err
 	}
-	return &n, nil
+	return &created, nil
 }
 
-func (g *gormLoginRepository) Get(i string) (*login.Flow, error) {
-	var n login.Flow
-	if err := g.DB.First(&n, "id = ?", i).Error; err != nil {
+func (g *gormLoginRepository) Get(ctx context.Context, id string) (*login.Flow, error) {
+	var found login.Flow
+	if err := g.DB.First(&found, "id = ?", id).Error; err != nil {
 		return nil, err
 	}
-	return &n, nil
+	return &found, nil
 }
 
-func (g *gormLoginRepository) GetByFlowID(i string) (*login.Flow, error) {
-	var n login.Flow
-	if err := g.DB.First(&n, "flow_id = ?", i).Error; err != nil {
+func (g *gormLoginRepository) GetByFlowID(ctx context.Context, flowID string) (*login.Flow, error) {
+	var found login.Flow
+	if err := g.DB.First(&found, "flow_id = ?", flowID).Error; err != nil {
 		return nil, err
 	}
-	return &n, nil
+	return &found, nil
 }
 
-func (g *gormLoginRepository) Update(l login.Flow) (*login.Flow, error) {
-	n := l
-	if err := g.DB.Save(&n).Error; err != nil {
+func (g *gormLoginRepository) Update(ctx context.Context, updateFlow login.Flow) (*login.Flow, error) {
+	updated := updateFlow
+	if err := g.DB.Save(&updated).Error; err != nil {
 		return nil, err
 	}
-	return &n, nil
+	return &updated, nil
 }
 
-func (g *gormLoginRepository) Delete(i uuid.UUID) error {
-	if err := g.DB.Where("id = ?", i.String()).Delete(login.Flow{}).Error; err != nil && err != gorm.ErrRecordNotFound {
+func (g *gormLoginRepository) Delete(ctx context.Context, id uuid.UUID) error {
+	if err := g.DB.Where("id = ?", id.String()).Delete(login.Flow{}).Error; err != nil && err != gorm.ErrRecordNotFound {
 		return err
 	}
 	return nil

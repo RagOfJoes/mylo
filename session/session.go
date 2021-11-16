@@ -1,6 +1,7 @@
 package session
 
 import (
+	"context"
 	"errors"
 	"time"
 
@@ -66,32 +67,32 @@ type Session struct {
 
 type Repository interface {
 	// Create creates a new Session
-	Create(newSession Session) (*Session, error)
+	Create(ctx context.Context, newSession Session) (*Session, error)
 	// Get retrieves a session via ID
-	Get(id uuid.UUID) (*Session, error)
+	Get(ctx context.Context, id uuid.UUID) (*Session, error)
 	// GetByToken retrieves a session via Token
-	GetByToken(token string) (*Session, error)
+	GetByToken(ctx context.Context, token string) (*Session, error)
 	// Update updates a session
-	Update(updateSession Session) (*Session, error)
+	Update(ctx context.Context, updateSession Session) (*Session, error)
 	// Delete deletes a session via ID
-	Delete(id uuid.UUID) error
+	Delete(ctx context.Context, id uuid.UUID) error
 	// DeleteAllIdentity deletes all the session that belongs to an identity
-	DeleteAllIdentity(identityID uuid.UUID) error
+	DeleteAllIdentity(ctx context.Context, identityID uuid.UUID) error
 }
 
 type Service interface {
 	// New creates a session
-	New(newSession Session) (*Session, error)
+	New(ctx context.Context, newSession Session) (*Session, error)
 	// FindByID finds a session via ID
-	FindByID(id uuid.UUID) (*Session, error)
+	FindByID(ctx context.Context, id uuid.UUID) (*Session, error)
 	// FindByToken finds a session via Token
-	FindByToken(token string) (*Session, error)
+	FindByToken(ctx context.Context, token string) (*Session, error)
 	// Update updates a session
-	Update(currentSession Session) (*Session, error)
+	Update(ctx context.Context, updateSession Session) (*Session, error)
 	// Destroy deletes session
-	Destroy(id uuid.UUID) error
+	Destroy(ctx context.Context, id uuid.UUID) error
 	// DestroyAllIdentity deletes all the session that belongs to an identity
-	DestroyAllIdentity(identityID uuid.UUID) error
+	DestroyAllIdentity(ctx context.Context, identityID uuid.UUID) error
 }
 
 func NewUnauthenticated() (*Session, error) {

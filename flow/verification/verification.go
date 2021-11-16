@@ -1,6 +1,7 @@
 package verification
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"time"
@@ -69,32 +70,32 @@ type SessionWarnPayload struct {
 // Repository defines the interface for repository implementations
 type Repository interface {
 	// Create creates a new flow
-	Create(newFlow Flow) (*Flow, error)
+	Create(ctx context.Context, newFlow Flow) (*Flow, error)
 	// Get retrieves a flow via ID
-	Get(id uuid.UUID) (*Flow, error)
+	Get(ctx context.Context, id uuid.UUID) (*Flow, error)
 	// GetByFlowIDOrVerifyID retrieves a flow via FlowID
-	GetByFlowIDOrVerifyID(id string) (*Flow, error)
+	GetByFlowIDOrVerifyID(ctx context.Context, id string) (*Flow, error)
 	// GetByContactID retrieves a flow via ContactID
-	GetByContactID(contactID uuid.UUID) (*Flow, error)
+	GetByContactID(ctx context.Context, contactID uuid.UUID) (*Flow, error)
 	// Update updates a flow
-	Update(updateFlow Flow) (*Flow, error)
+	Update(ctx context.Context, updateFlow Flow) (*Flow, error)
 	// Delete deletes a flow via ID
-	Delete(id uuid.UUID) error
+	Delete(ctx context.Context, id uuid.UUID) error
 }
 
 // Service defines the interface for service implementations
 type Service interface {
 	// NewDefault creates a new flow with a Status of LinkPending
-	NewDefault(identity identity.Identity, contact contact.Contact, requestURL string) (*Flow, error)
+	NewDefault(ctx context.Context, identity identity.Identity, contact contact.Contact, requestURL string) (*Flow, error)
 	// NewSessionWarn creates a new flow with a Status of SessionWarn. This should be called when User's session
 	// has passed its half-life
-	NewSessionWarn(identity identity.Identity, contact contact.Contact, requestURL string) (*Flow, error)
+	NewSessionWarn(ctx context.Context, identity identity.Identity, contact contact.Contact, requestURL string) (*Flow, error)
 	// Find does exactly that
-	Find(flowID string, identity identity.Identity) (*Flow, error)
+	Find(ctx context.Context, flowID string, identity identity.Identity) (*Flow, error)
 	// SubmitSessionWarn requires the `SessionWarn` status and the `SessionWarnPayload` to move the flow to the next step. On success, the transport should send an email to selected contact
-	SubmitSessionWarn(flow Flow, identity identity.Identity, payload SessionWarnPayload) (*Flow, error)
+	SubmitSessionWarn(ctx context.Context, flow Flow, identity identity.Identity, payload SessionWarnPayload) (*Flow, error)
 	// Verify either completes the flow or moves to next status
-	Verify(flow Flow, identity identity.Identity) (*Flow, error)
+	Verify(ctx context.Context, flow Flow, identity identity.Identity) (*Flow, error)
 }
 
 // TableName overrides GORM's table name

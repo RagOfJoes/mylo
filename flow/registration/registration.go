@@ -1,6 +1,7 @@
 package registration
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"time"
@@ -62,25 +63,25 @@ type Payload struct {
 // Repository defines the interface for repository implementations
 type Repository interface {
 	// Creates a new flow
-	Create(Flow) (*Flow, error)
+	Create(ctx context.Context, newFlow Flow) (*Flow, error)
 	// Get retrieves a flow via ID
-	Get(string) (*Flow, error)
+	Get(ctx context.Context, id string) (*Flow, error)
 	// GetByFlowID retrieves a flow via FlowID
-	GetByFlowID(string) (*Flow, error)
+	GetByFlowID(ctx context.Context, flowID string) (*Flow, error)
 	// Update updates a flow
-	Update(Flow) (*Flow, error)
+	Update(ctx context.Context, updateFlow Flow) (*Flow, error)
 	// Delete deletes a flow via ID
-	Delete(uuid.UUID) error
+	Delete(ctx context.Context, id uuid.UUID) error
 }
 
 // Service defines the interface for service implementations
 type Service interface {
 	// New creates a new registration flow
-	New(requestURL string) (*Flow, error)
+	New(ctx context.Context, requestURL string) (*Flow, error)
 	// Find does exactly that
-	Find(flowID string) (*Flow, error)
+	Find(ctx context.Context, flowID string) (*Flow, error)
 	// Submit completes the flow
-	Submit(flow Flow, payload Payload) (*identity.Identity, error)
+	Submit(ctx context.Context, flow Flow, payload Payload) (*identity.Identity, error)
 }
 
 // TableName overrides GORM's table name

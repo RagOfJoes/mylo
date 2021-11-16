@@ -44,13 +44,13 @@ func NewRegistrationHttp(e email.Client, sh sessionHttp.Http, s registration.Ser
 
 func (h *Http) initFlow() gin.HandlerFunc {
 	return func(c *gin.Context) {
+		ctx := c.Request.Context()
 		// Check if user is already authenticated
-		if _, err := h.sh.Session(c.Request, c.Writer, true); err == nil {
+		if _, err := h.sh.Session(ctx, c.Request, c.Writer, true); err == nil {
 			c.Error(internal.NewErrorf(internal.ErrorCodeForbidden, "%v", registration.ErrAlreadyAuthenticated))
 			return
 		}
-		fullURL := transport.RequestURL(c.Request)
-		newFlow, err := h.s.New(fullURL)
+		newFlow, err := h.s.New(ctx, transport.RequestURL(c.Request))
 		if err != nil {
 			c.Error(err)
 			return
@@ -65,12 +65,13 @@ func (h *Http) initFlow() gin.HandlerFunc {
 
 func (h *Http) getFlow() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		if _, err := h.sh.Session(c.Request, c.Writer, true); err == nil {
+		ctx := c.Request.Context()
+		if _, err := h.sh.Session(ctx, c.Request, c.Writer, true); err == nil {
 			c.Error(internal.NewErrorf(internal.ErrorCodeForbidden, "%v", recovery.ErrAlreadyAuthenticated))
 			return
 		}
 		flowID := c.Param("flow_id")
-		flow, err := h.s.Find(flowID)
+		flow, err := h.s.Find(ctx, flowID)
 		if err != nil {
 			c.Error(err)
 			return
@@ -85,7 +86,8 @@ func (h *Http) getFlow() gin.HandlerFunc {
 
 func (h *Http) submitFlow() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		sess, _ := h.sh.SessionOrNewAndSetCookie(c.Request, c.Writer, false)
+		ctx := c.Request.Context()
+		sess, _ := h.sh.SessionOrNewAndSetCookie(ctx, c.Request, c.Writer, false)
 		if sess != nil && sess.Authenticated() {
 			c.Error(internal.NewErrorf(internal.ErrorCodeForbidden, "%v", internal.ErrAlreadyAuthenticated))
 			return
@@ -93,7 +95,7 @@ func (h *Http) submitFlow() gin.HandlerFunc {
 		// Retrieve flow id
 		flowID := c.Param("flow_id")
 		// Check if flow id provided is valid
-		flow, err := h.s.Find(flowID)
+		flow, err := h.s.Find(ctx, flowID)
 		if err != nil {
 			c.Error(err)
 			return
@@ -104,7 +106,7 @@ func (h *Http) submitFlow() gin.HandlerFunc {
 			c.Error(internal.WrapErrorf(err, internal.ErrorCodeInvalidArgument, "%v", registration.ErrInvalidPaylod))
 			return
 		}
-		user, err := h.s.Submit(*flow, payload)
+		user, err := h.s.Submit(ctx, *flow, payload)
 		if err != nil {
 			c.Error(err)
 			return
@@ -115,7 +117,7 @@ func (h *Http) submitFlow() gin.HandlerFunc {
 			return
 		}
 		// Save session
-		if sess, err = h.sh.Upsert(*sess); err != nil {
+		if sess, err = h.sh.Upsert(ctx, *sess); err != nil {
 			c.Error(err)
 			return
 		}
@@ -123,7 +125,7 @@ func (h *Http) submitFlow() gin.HandlerFunc {
 		// Create a new verification flow in the background
 		// TODO: Look to add some dependency for callbacks on certain events
 		go func(user identity.Identity) {
-			vf, err := h.vs.NewDefault(user, user.Contacts[0], fmt.Sprintf("/registration/%s", flowID))
+			vf, err := h.vs.NewDefault(ctx, user, user.Contacts[0], fmt.Sprintf("/registration/%s", flowID))
 			if err != nil {
 				// TODO: Capture error
 				log.Print(err)

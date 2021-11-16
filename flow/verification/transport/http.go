@@ -41,7 +41,8 @@ func NewVerificationHttp(e email.Client, sh sessionHttp.Http, s verification.Ser
 
 func (h *Http) initFlow() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		sess, err := h.sh.SessionOrNewAndSetCookie(c.Request, c.Writer, false)
+		ctx := c.Request.Context()
+		sess, err := h.sh.SessionOrNewAndSetCookie(ctx, c.Request, c.Writer, false)
 		if err != nil {
 			c.Error(err)
 			return
@@ -49,7 +50,6 @@ func (h *Http) initFlow() gin.HandlerFunc {
 			c.Error(internal.NewErrorf(internal.ErrorCodeForbidden, "%v", internal.ErrUnauthorized))
 			return
 		}
-
 		// - Check if contact provided actually belongs to the user
 		// - Check if session has passed its half life
 		contactID := c.Param("contact_id")
@@ -63,7 +63,7 @@ func (h *Http) initFlow() gin.HandlerFunc {
 		requestURL := transport.RequestURL(c.Request)
 		halfLife := sess.ExpiresAt.Sub(*sess.AuthenticatedAt) / 2
 		if time.Since(*sess.AuthenticatedAt) >= halfLife {
-			newFlow, err := h.s.NewSessionWarn(*sess.Identity, foundContact, requestURL)
+			newFlow, err := h.s.NewSessionWarn(ctx, *sess.Identity, foundContact, requestURL)
 			if err != nil {
 				c.Error(err)
 				return
@@ -75,7 +75,7 @@ func (h *Http) initFlow() gin.HandlerFunc {
 			return
 		}
 
-		newFlow, err := h.s.NewDefault(*sess.Identity, foundContact, requestURL)
+		newFlow, err := h.s.NewDefault(ctx, *sess.Identity, foundContact, requestURL)
 		if err != nil {
 			c.Error(err)
 			return
@@ -99,7 +99,8 @@ func (h *Http) initFlow() gin.HandlerFunc {
 
 func (h *Http) getFlow() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		sess, err := h.sh.SessionOrNewAndSetCookie(c.Request, c.Writer, false)
+		ctx := c.Request.Context()
+		sess, err := h.sh.SessionOrNewAndSetCookie(ctx, c.Request, c.Writer, false)
 		if err != nil {
 			c.Error(err)
 			return
@@ -109,7 +110,7 @@ func (h *Http) getFlow() gin.HandlerFunc {
 		}
 
 		id := c.Param("id")
-		flow, err := h.s.Find(id, *sess.Identity)
+		flow, err := h.s.Find(ctx, id, *sess.Identity)
 		if err != nil {
 			c.Error(err)
 			return
@@ -124,7 +125,8 @@ func (h *Http) getFlow() gin.HandlerFunc {
 
 func (h *Http) verifyFlow() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		sess, err := h.sh.SessionOrNewAndSetCookie(c.Request, c.Writer, false)
+		ctx := c.Request.Context()
+		sess, err := h.sh.SessionOrNewAndSetCookie(ctx, c.Request, c.Writer, false)
 		if err != nil {
 			c.Error(err)
 			return
@@ -134,7 +136,7 @@ func (h *Http) verifyFlow() gin.HandlerFunc {
 		}
 
 		id := c.Param("id")
-		flow, err := h.s.Find(id, *sess.Identity)
+		flow, err := h.s.Find(ctx, id, *sess.Identity)
 		if err != nil {
 			c.Error(err)
 			return
@@ -146,7 +148,7 @@ func (h *Http) verifyFlow() gin.HandlerFunc {
 			if err := c.ShouldBind(&payload); err != nil {
 				c.Error(internal.WrapErrorf(err, internal.ErrorCodeInvalidArgument, "Must provide password"))
 			}
-			submittedFlow, err := h.s.SubmitSessionWarn(*flow, *sess.Identity, payload)
+			submittedFlow, err := h.s.SubmitSessionWarn(ctx, *flow, *sess.Identity, payload)
 			if err != nil {
 				c.Error(err)
 				return
@@ -177,7 +179,7 @@ func (h *Http) verifyFlow() gin.HandlerFunc {
 			return
 		}
 
-		verified, err := h.s.Verify(*flow, *sess.Identity)
+		verified, err := h.s.Verify(ctx, *flow, *sess.Identity)
 		if err != nil {
 			c.Error(err)
 			return

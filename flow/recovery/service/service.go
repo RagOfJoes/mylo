@@ -1,6 +1,7 @@
 package service
 
 import (
+	"context"
 	"log"
 
 	"github.com/RagOfJoes/idp/flow/recovery"
@@ -24,24 +25,24 @@ func NewRecoveryService(r recovery.Repository, cs credential.Service, cos contac
 	}
 }
 
-func (s *service) New(requestURL string) (*recovery.Flow, error) {
+func (s *service) New(ctx context.Context, requestURL string) (*recovery.Flow, error) {
 	newFlow, err := recovery.New(requestURL)
 	if err != nil {
 		return nil, err
 	}
-	created, err := s.r.Create(*newFlow)
+	created, err := s.r.Create(ctx, *newFlow)
 	if err != nil {
 		return nil, internal.WrapErrorf(err, internal.ErrorCodeInternal, "Failed to create new recovery flow")
 	}
 	return created, nil
 }
 
-func (s *service) Find(id string) (*recovery.Flow, error) {
+func (s *service) Find(ctx context.Context, id string) (*recovery.Flow, error) {
 	if id == "" {
 		return nil, internal.NewErrorf(internal.ErrorCodeNotFound, "%v", internal.ErrInvalidExpiredFlow)
 	}
 
-	flow, err := s.r.GetByFlowIDOrRecoverID(id)
+	flow, err := s.r.GetByFlowIDOrRecoverID(ctx, id)
 	if err != nil || flow == nil {
 		return nil, internal.NewErrorf(internal.ErrorCodeNotFound, "%v", internal.ErrInvalidExpiredFlow)
 	}
@@ -61,7 +62,7 @@ func (s *service) Find(id string) (*recovery.Flow, error) {
 	return flow, nil
 }
 
-func (s *service) SubmitIdentifier(flow recovery.Flow, payload recovery.IdentifierPayload) (*recovery.Flow, error) {
+func (s *service) SubmitIdentifier(ctx context.Context, flow recovery.Flow, payload recovery.IdentifierPayload) (*recovery.Flow, error) {
 	if err := flow.Valid(); err != nil {
 		return nil, internal.WrapErrorf(err, internal.ErrorCodeNotFound, "%v", internal.ErrInvalidExpiredFlow)
 	}
@@ -72,10 +73,10 @@ func (s *service) SubmitIdentifier(flow recovery.Flow, payload recovery.Identifi
 		return nil, internal.WrapErrorf(err, internal.ErrorCodeInvalidArgument, "%v", recovery.ErrInvalidIdentifierPaylod)
 	}
 
-	credential, err := s.cs.FindPasswordWithIdentifier(payload.Identifier)
+	credential, err := s.cs.FindPasswordWithIdentifier(ctx, payload.Identifier)
 	if err != nil {
 		flow.Fail()
-		if _, err := s.r.Update(flow); err != nil {
+		if _, err := s.r.Update(ctx, flow); err != nil {
 			// TODO: Capture Error Here
 			log.Print(err)
 		}
@@ -86,14 +87,14 @@ func (s *service) SubmitIdentifier(flow recovery.Flow, payload recovery.Identifi
 	if err := flow.LinkPending(credential.IdentityID); err != nil {
 		return nil, err
 	}
-	updated, err := s.r.Update(flow)
+	updated, err := s.r.Update(ctx, flow)
 	if err != nil {
 		return nil, internal.WrapErrorf(err, internal.ErrorCodeInternal, "Failed to update recovery flow: %s", flow.ID)
 	}
 	return updated, nil
 }
 
-func (s *service) SubmitUpdatePassword(flow recovery.Flow, payload recovery.SubmitPayload) (*recovery.Flow, error) {
+func (s *service) SubmitUpdatePassword(ctx context.Context, flow recovery.Flow, payload recovery.SubmitPayload) (*recovery.Flow, error) {
 	if err := flow.Valid(); err != nil {
 		return nil, internal.WrapErrorf(err, internal.ErrorCodeNotFound, "%v", internal.ErrInvalidExpiredFlow)
 	}
@@ -105,13 +106,13 @@ func (s *service) SubmitUpdatePassword(flow recovery.Flow, payload recovery.Subm
 	}
 
 	// Update password
-	_, err := s.cs.UpdatePassword(*flow.IdentityID, payload.Password)
+	_, err := s.cs.UpdatePassword(ctx, *flow.IdentityID, payload.Password)
 	if err != nil {
 		return nil, err
 	}
 	// Complete flow
 	flow.Complete()
-	updated, err := s.r.Update(flow)
+	updated, err := s.r.Update(ctx, flow)
 	if err != nil {
 		return nil, internal.WrapErrorf(err, internal.ErrorCodeInternal, "Failed to update recovery flow: %s", flow.ID)
 	}

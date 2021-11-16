@@ -1,6 +1,7 @@
 package service
 
 import (
+	"context"
 	"time"
 
 	"github.com/RagOfJoes/idp/flow/verification"
@@ -27,48 +28,48 @@ func NewVerificationService(r verification.Repository, cos contact.Service, cs c
 	}
 }
 
-func (s *service) NewDefault(identity identity.Identity, contact contact.Contact, requestURL string) (*verification.Flow, error) {
+func (s *service) NewDefault(ctx context.Context, identity identity.Identity, contact contact.Contact, requestURL string) (*verification.Flow, error) {
 	if !isValidContact(contact, identity) {
 		return nil, internal.NewErrorf(internal.ErrorCodeInvalidArgument, "%v", verification.ErrInvalidContact)
 	}
-	if existing := s.getExistingFlow(contact); existing != nil {
+	if existing := s.getExistingFlow(ctx, contact); existing != nil {
 		return existing, nil
 	}
 	newFlow, err := verification.NewLinkPending(requestURL, contact.ID, identity.ID)
 	if err != nil {
 		return nil, err
 	}
-	created, err := s.r.Create(*newFlow)
+	created, err := s.r.Create(ctx, *newFlow)
 	if err != nil {
 		return nil, internal.WrapErrorf(err, internal.ErrorCodeInternal, "Failed to create new verification flow")
 	}
 	return created, nil
 }
 
-func (s *service) NewSessionWarn(identity identity.Identity, contact contact.Contact, requestURL string) (*verification.Flow, error) {
+func (s *service) NewSessionWarn(ctx context.Context, identity identity.Identity, contact contact.Contact, requestURL string) (*verification.Flow, error) {
 	if !isValidContact(contact, identity) {
 		return nil, internal.NewErrorf(internal.ErrorCodeInternal, "%v", verification.ErrInvalidContact)
 	}
-	if existing := s.getExistingFlow(contact); existing != nil {
+	if existing := s.getExistingFlow(ctx, contact); existing != nil {
 		return existing, nil
 	}
 	newFlow, err := verification.NewSessionWarn(requestURL, contact.ID, identity.ID)
 	if err != nil {
 		return nil, err
 	}
-	created, err := s.r.Create(*newFlow)
+	created, err := s.r.Create(ctx, *newFlow)
 	if err != nil {
 		return nil, internal.WrapErrorf(err, internal.ErrorCodeInternal, "Failed to create new verification flow with status of `SessionWarn`")
 	}
 	return created, nil
 }
 
-func (s *service) Find(id string, identity identity.Identity) (*verification.Flow, error) {
+func (s *service) Find(ctx context.Context, id string, identity identity.Identity) (*verification.Flow, error) {
 	if id == "" {
 		return nil, internal.NewErrorf(internal.ErrorCodeNotFound, "%v", internal.ErrInvalidExpiredFlow)
 	}
 
-	flow, err := s.r.GetByFlowIDOrVerifyID(id)
+	flow, err := s.r.GetByFlowIDOrVerifyID(ctx, id)
 	if err != nil || flow == nil {
 		return nil, internal.WrapErrorf(err, internal.ErrorCodeNotFound, "%v", internal.ErrInvalidExpiredFlow)
 	}
@@ -91,7 +92,7 @@ func (s *service) Find(id string, identity identity.Identity) (*verification.Flo
 	return flow, nil
 }
 
-func (s *service) SubmitSessionWarn(flow verification.Flow, identity identity.Identity, payload verification.SessionWarnPayload) (*verification.Flow, error) {
+func (s *service) SubmitSessionWarn(ctx context.Context, flow verification.Flow, identity identity.Identity, payload verification.SessionWarnPayload) (*verification.Flow, error) {
 	if err := flow.Valid(); err != nil {
 		return nil, internal.WrapErrorf(err, internal.ErrorCodeNotFound, "%v", internal.ErrInvalidExpiredFlow)
 	}
@@ -103,21 +104,21 @@ func (s *service) SubmitSessionWarn(flow verification.Flow, identity identity.Id
 	}
 
 	// Check if password is correct
-	if err := s.cs.ComparePassword(flow.IdentityID, payload.Password); err != nil {
+	if err := s.cs.ComparePassword(ctx, flow.IdentityID, payload.Password); err != nil {
 		return nil, internal.WrapErrorf(err, internal.ErrorCodeInvalidArgument, "%v", verification.ErrInvalidPassword)
 	}
 	// Update flow to next Status
 	if err := flow.Next(); err != nil {
 		return nil, err
 	}
-	updated, err := s.r.Update(flow)
+	updated, err := s.r.Update(ctx, flow)
 	if err != nil {
 		return nil, internal.WrapErrorf(err, internal.ErrorCodeInternal, "Failed to update verification flow: %s", flow.ID)
 	}
 	return updated, nil
 }
 
-func (s *service) Verify(flow verification.Flow, identity identity.Identity) (*verification.Flow, error) {
+func (s *service) Verify(ctx context.Context, flow verification.Flow, identity identity.Identity) (*verification.Flow, error) {
 	if err := flow.Valid(); err != nil {
 		return nil, internal.WrapErrorf(err, internal.ErrorCodeNotFound, "%v", internal.ErrInvalidExpiredFlow)
 	}
@@ -135,7 +136,7 @@ func (s *service) Verify(flow verification.Flow, identity identity.Identity) (*v
 			break
 		}
 	}
-	_, err := s.cos.Add(identity.Contacts...)
+	_, err := s.cos.Add(ctx, identity.Contacts...)
 	if err != nil {
 		return nil, err
 	}
@@ -143,7 +144,7 @@ func (s *service) Verify(flow verification.Flow, identity identity.Identity) (*v
 	if err := flow.Next(); err != nil {
 		return nil, err
 	}
-	verified, err := s.r.Update(flow)
+	verified, err := s.r.Update(ctx, flow)
 	// TODO: Revert contacts on error
 	if err != nil {
 		return nil, err
