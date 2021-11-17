@@ -1,7 +1,7 @@
 package email
 
 import (
-	"github.com/RagOfJoes/idp/internal/config"
+	"github.com/RagOfJoes/mylo/internal/config"
 )
 
 type client struct {

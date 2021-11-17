@@ -8,7 +8,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/RagOfJoes/idp/internal/config"
+	"github.com/RagOfJoes/mylo/internal/config"
 	"golang.org/x/crypto/argon2"
 )
 

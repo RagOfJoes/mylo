@@ -3,7 +3,7 @@ package gorm
 import (
 	"context"
 
-	"github.com/RagOfJoes/idp/user/credential"
+	"github.com/RagOfJoes/mylo/user/credential"
 	"github.com/gofrs/uuid"
 	"gorm.io/gorm"
 )

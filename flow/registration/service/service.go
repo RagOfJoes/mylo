@@ -3,12 +3,12 @@ package service
 import (
 	"context"
 
-	"github.com/RagOfJoes/idp/flow/registration"
-	"github.com/RagOfJoes/idp/internal"
-	"github.com/RagOfJoes/idp/internal/validate"
-	"github.com/RagOfJoes/idp/user/contact"
-	"github.com/RagOfJoes/idp/user/credential"
-	"github.com/RagOfJoes/idp/user/identity"
+	"github.com/RagOfJoes/mylo/flow/registration"
+	"github.com/RagOfJoes/mylo/internal"
+	"github.com/RagOfJoes/mylo/internal/validate"
+	"github.com/RagOfJoes/mylo/user/contact"
+	"github.com/RagOfJoes/mylo/user/credential"
+	"github.com/RagOfJoes/mylo/user/identity"
 	"golang.org/x/sync/errgroup"
 )
 

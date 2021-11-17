@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/RagOfJoes/idp/user/credential"
+	"github.com/RagOfJoes/mylo/user/credential"
 	"github.com/pkg/errors"
 )
 

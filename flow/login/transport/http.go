@@ -4,12 +4,12 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/RagOfJoes/idp/flow/login"
-	"github.com/RagOfJoes/idp/internal"
-	"github.com/RagOfJoes/idp/internal/config"
-	sessionHttp "github.com/RagOfJoes/idp/session/transport"
-	"github.com/RagOfJoes/idp/transport"
-	"github.com/RagOfJoes/idp/user/credential"
+	"github.com/RagOfJoes/mylo/flow/login"
+	"github.com/RagOfJoes/mylo/internal"
+	"github.com/RagOfJoes/mylo/internal/config"
+	sessionHttp "github.com/RagOfJoes/mylo/session/transport"
+	"github.com/RagOfJoes/mylo/transport"
+	"github.com/RagOfJoes/mylo/user/credential"
 	"github.com/gin-gonic/gin"
 )
 

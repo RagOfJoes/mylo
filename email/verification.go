@@ -3,10 +3,10 @@ package email
 import (
 	"encoding/json"
 
-	"github.com/RagOfJoes/idp/internal"
-	"github.com/RagOfJoes/idp/internal/config"
-	"github.com/RagOfJoes/idp/internal/validate"
-	"github.com/RagOfJoes/idp/user/identity"
+	"github.com/RagOfJoes/mylo/internal"
+	"github.com/RagOfJoes/mylo/internal/config"
+	"github.com/RagOfJoes/mylo/internal/validate"
+	"github.com/RagOfJoes/mylo/user/identity"
 	"github.com/sendgrid/sendgrid-go"
 )
 

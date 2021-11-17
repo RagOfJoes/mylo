@@ -3,8 +3,8 @@ package gorm
 import (
 	"context"
 
-	"github.com/RagOfJoes/idp/session"
-	"github.com/RagOfJoes/idp/user/identity"
+	"github.com/RagOfJoes/mylo/session"
+	"github.com/RagOfJoes/mylo/user/identity"
 	"github.com/gofrs/uuid"
 	"gorm.io/gorm"
 )

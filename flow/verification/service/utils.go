@@ -3,9 +3,9 @@ package service
 import (
 	"context"
 
-	"github.com/RagOfJoes/idp/flow/verification"
-	"github.com/RagOfJoes/idp/user/contact"
-	"github.com/RagOfJoes/idp/user/identity"
+	"github.com/RagOfJoes/mylo/flow/verification"
+	"github.com/RagOfJoes/mylo/user/contact"
+	"github.com/RagOfJoes/mylo/user/identity"
 )
 
 // Check if Contact provided actually belongs to the User

@@ -1,6 +1,6 @@
 package email
 
-import "github.com/RagOfJoes/idp/user/identity"
+import "github.com/RagOfJoes/mylo/user/identity"
 
 // Base types
 //

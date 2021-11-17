@@ -3,9 +3,9 @@ package gorm
 import (
 	"context"
 
-	"github.com/RagOfJoes/idp/internal"
-	"github.com/RagOfJoes/idp/user/credential"
-	"github.com/RagOfJoes/idp/user/identity"
+	"github.com/RagOfJoes/mylo/internal"
+	"github.com/RagOfJoes/mylo/user/credential"
+	"github.com/RagOfJoes/mylo/user/identity"
 	"github.com/gofrs/uuid"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"

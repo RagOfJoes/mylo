@@ -4,9 +4,9 @@ import (
 	"context"
 	"errors"
 
-	"github.com/RagOfJoes/idp/internal"
-	"github.com/RagOfJoes/idp/user/contact"
-	"github.com/RagOfJoes/idp/user/credential"
+	"github.com/RagOfJoes/mylo/internal"
+	"github.com/RagOfJoes/mylo/user/contact"
+	"github.com/RagOfJoes/mylo/user/credential"
 	"github.com/gofrs/uuid"
 )
 

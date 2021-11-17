@@ -5,7 +5,7 @@ FROM golang:alpine
 RUN apk update && apk upgrade \
   && apk add --no-cache make
 
-WORKDIR $GOPATH/src/github.com/RagOfJoes/ragofjoes-idp/
+WORKDIR $GOPATH/src/github.com/RagOfJoes/mylo/
 
 # Copy go modules
 COPY go.mod go.sum reflex.conf ./

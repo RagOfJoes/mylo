@@ -1,7 +1,7 @@
 version: "3.8"
 services:
   db:
-    container_name: "idp-dev-db"
+    container_name: "mylo-dev-pg"
     build:
       context: ./docker/
       dockerfile: Dockerfile.pg
@@ -12,15 +12,15 @@ services:
     volumes:
       - pgdata:/var/lib/postgresql/data
   dev:
-    working_dir: /idp
-    container_name: "idp-dev"
+    working_dir: /mylo
+    container_name: "mylo-dev"
     build:
       context: .
       dockerfile: docker/Dockerfile.dev
     ports:
       - 8080:8080
     volumes:
-      - .:/idp
+      - .:/mylo
     depends_on:
       - db
 volumes:

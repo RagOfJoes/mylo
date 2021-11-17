@@ -5,9 +5,9 @@ import (
 	"encoding/json"
 	"time"
 
-	"github.com/RagOfJoes/idp/internal"
-	"github.com/RagOfJoes/idp/internal/config"
-	"github.com/RagOfJoes/idp/user/credential"
+	"github.com/RagOfJoes/mylo/internal"
+	"github.com/RagOfJoes/mylo/internal/config"
+	"github.com/RagOfJoes/mylo/user/credential"
 	"github.com/gofrs/uuid"
 	"github.com/nbutton23/zxcvbn-go"
 )

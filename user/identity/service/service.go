@@ -3,8 +3,8 @@ package service
 import (
 	"context"
 
-	"github.com/RagOfJoes/idp/internal"
-	"github.com/RagOfJoes/idp/user/identity"
+	"github.com/RagOfJoes/mylo/internal"
+	"github.com/RagOfJoes/mylo/user/identity"
 	goaway "github.com/TwiN/go-away"
 	"github.com/gofrs/uuid"
 	"golang.org/x/sync/errgroup"

@@ -6,8 +6,8 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/RagOfJoes/idp/internal"
-	"github.com/RagOfJoes/idp/internal/config"
+	"github.com/RagOfJoes/mylo/internal"
+	"github.com/RagOfJoes/mylo/internal/config"
 	"github.com/gin-gonic/gin"
 	"github.com/unrolled/secure"
 	"go.uber.org/ratelimit"
@@ -35,8 +35,8 @@ func SecurityMiddleware() gin.HandlerFunc {
 		// Set some extra settings CORS
 		c.Writer.Header().Set("Access-Control-Allow-Origin", cfg.Server.AccessControl.AllowOrigin)
 		c.Writer.Header().Set("Access-Control-Allow-Credentials", fmt.Sprintf("%v", cfg.Server.AccessControl.AllowCredentials))
-		c.Writer.Header().Set("Access-Control-Allow-Headers", strings.Join(cfg.Server.AccessControl.AllowHeaders, ", "))
-		c.Writer.Header().Set("Access-Control-Allow-Methods", strings.Join(cfg.Server.AccessControl.AllowMethods, ", "))
+		c.Writer.Header().Set("Access-Control-Allow-Headers", strings.Join(cfg.Server.AccessControl.AllowHeaders, ","))
+		c.Writer.Header().Set("Access-Control-Allow-Methods", strings.Join(cfg.Server.AccessControl.AllowMethods, ","))
 		// For redirection avoid Header rewrite
 		if status := c.Writer.Status(); status > 300 && status < 399 {
 			c.Abort()

@@ -6,14 +6,14 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/RagOfJoes/idp/internal"
-	"github.com/RagOfJoes/idp/internal/config"
-	"github.com/RagOfJoes/idp/internal/validate"
-	"github.com/RagOfJoes/idp/pkg/nanoid"
-	"github.com/RagOfJoes/idp/ui/form"
-	"github.com/RagOfJoes/idp/ui/node"
-	"github.com/RagOfJoes/idp/user/contact"
-	"github.com/RagOfJoes/idp/user/identity"
+	"github.com/RagOfJoes/mylo/internal"
+	"github.com/RagOfJoes/mylo/internal/config"
+	"github.com/RagOfJoes/mylo/internal/validate"
+	"github.com/RagOfJoes/mylo/pkg/nanoid"
+	"github.com/RagOfJoes/mylo/ui/form"
+	"github.com/RagOfJoes/mylo/ui/node"
+	"github.com/RagOfJoes/mylo/user/contact"
+	"github.com/RagOfJoes/mylo/user/identity"
 	"github.com/gofrs/uuid"
 )
 

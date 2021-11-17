@@ -5,8 +5,8 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/RagOfJoes/idp/internal/validate"
-	"github.com/RagOfJoes/idp/ui/node"
+	"github.com/RagOfJoes/mylo/internal/validate"
+	"github.com/RagOfJoes/mylo/ui/node"
 )
 
 const (

@@ -3,9 +3,9 @@ package transport
 import (
 	"net/http"
 
-	"github.com/RagOfJoes/idp/internal"
-	sessionHttp "github.com/RagOfJoes/idp/session/transport"
-	"github.com/RagOfJoes/idp/transport"
+	"github.com/RagOfJoes/mylo/internal"
+	sessionHttp "github.com/RagOfJoes/mylo/session/transport"
+	"github.com/RagOfJoes/mylo/transport"
 	"github.com/gin-gonic/gin"
 )
 

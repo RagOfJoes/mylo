@@ -4,7 +4,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/RagOfJoes/idp/internal/validate"
+	"github.com/RagOfJoes/mylo/internal/validate"
 	"github.com/spf13/viper"
 	"github.com/unrolled/secure"
 )
@@ -91,7 +91,7 @@ func Setup(filename string, filetype string, filepath string) error {
 				Domain:   "",
 				Persist:  true,
 				HttpOnly: true,
-				Name:     "raggy_sid",
+				Name:     "mylo_sid",
 				SameSite: http.SameSiteLaxMode,
 			},
 		},

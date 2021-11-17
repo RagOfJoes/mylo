@@ -11,7 +11,7 @@ import (
 type Cookie struct {
 	// Name of the cookie
 	//
-	// Default: raggy_sid
+	// Default: mylo_sid
 	Name string
 	// Path instructs web browsers to only send the cookie to the specified directory or subdirectories (or paths or resources)
 	//

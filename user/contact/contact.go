@@ -5,7 +5,7 @@ import (
 	"errors"
 	"time"
 
-	"github.com/RagOfJoes/idp/internal"
+	"github.com/RagOfJoes/mylo/internal"
 	"github.com/gofrs/uuid"
 )
 

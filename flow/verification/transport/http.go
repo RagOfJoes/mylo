@@ -6,14 +6,14 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/RagOfJoes/idp/email"
-	"github.com/RagOfJoes/idp/flow/verification"
-	"github.com/RagOfJoes/idp/internal"
-	"github.com/RagOfJoes/idp/internal/config"
-	sessionHttp "github.com/RagOfJoes/idp/session/transport"
-	"github.com/RagOfJoes/idp/transport"
-	"github.com/RagOfJoes/idp/user/contact"
-	"github.com/RagOfJoes/idp/user/identity"
+	"github.com/RagOfJoes/mylo/email"
+	"github.com/RagOfJoes/mylo/flow/verification"
+	"github.com/RagOfJoes/mylo/internal"
+	"github.com/RagOfJoes/mylo/internal/config"
+	sessionHttp "github.com/RagOfJoes/mylo/session/transport"
+	"github.com/RagOfJoes/mylo/transport"
+	"github.com/RagOfJoes/mylo/user/contact"
+	"github.com/RagOfJoes/mylo/user/identity"
 	"github.com/gin-gonic/gin"
 )
 

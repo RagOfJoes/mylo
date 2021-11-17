@@ -1,4 +1,4 @@
-module github.com/RagOfJoes/idp
+module github.com/RagOfJoes/mylo
 
 go 1.17
 

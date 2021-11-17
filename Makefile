@@ -6,7 +6,7 @@ dc-down:
 # ========= Development ========= # 
 .PHONY: dev-run
 dev-run:
-	go run ./cmd/idp
+	go run ./cmd/mylo
 
 .PHONY: dev-dc-build
 dev-dc-build:

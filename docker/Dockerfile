@@ -10,8 +10,8 @@ FROM golang:alpine as builder
 # Ca-certificates is required to call HTTPS endpoints.
 RUN apk update && apk add --no-cache git ca-certificates tzdata && update-ca-certificates
 
-# Create raggy
-ENV USER=raggy
+# Create mylo
+ENV USER=mylo
 ENV UID=10001
 
 # See https://stackoverflow.com/a/55757473/12429735
@@ -23,7 +23,7 @@ RUN adduser \
 	--no-create-home \
 	--uid "${UID}" \
 	"${USER}"
-WORKDIR $GOPATH/src/github.com/RagOfJoes/ragofjoes-idp/
+WORKDIR $GOPATH/src/github.com/RagOfJoes/mylo/
 
 # Copy go modules then download and verify
 COPY go.mod .
@@ -35,7 +35,7 @@ COPY . .
 # Build the binary
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build \
 	-ldflags='-w -s -extldflags "-static"' -a \
-	-o /go/bin/ragofjoes-idp cmd/idp/main.go
+	-o /go/bin/mylo cmd/mylo/main.go
 
 ############################
 # STEP 2 build a small image
@@ -49,13 +49,13 @@ COPY --from=builder /etc/passwd /etc/passwd
 COPY --from=builder /etc/group /etc/group
 
 # Copy our static executable
-COPY --from=builder /go/bin/ragofjoes-idp /go/bin/ragofjoes-idp
+COPY --from=builder /go/bin/mylo /go/bin/mylo
 
 # Use an unprivileged user.
-USER raggy:raggy
+USER mylo:mylo
 
 # Expose volume so that users can mount their configuration file
-VOLUME /home/raggy
+VOLUME /home/mylo
 
 # Run the binary.
 ENTRYPOINT ["/go/bin/lumpia"]

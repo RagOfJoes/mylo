@@ -3,7 +3,7 @@ package gorm
 import (
 	"context"
 
-	"github.com/RagOfJoes/idp/flow/recovery"
+	"github.com/RagOfJoes/mylo/flow/recovery"
 	"github.com/gofrs/uuid"
 	"gorm.io/gorm"
 )

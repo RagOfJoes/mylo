@@ -9,7 +9,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/RagOfJoes/idp/internal/config"
+	"github.com/RagOfJoes/mylo/internal/config"
 	"github.com/gin-gonic/gin"
 )
 
