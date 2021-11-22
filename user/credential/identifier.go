@@ -6,6 +6,9 @@ import (
 	"github.com/gofrs/uuid"
 )
 
+// IdentifierType defines an Identifier Type
+type IdentifierType string
+
 const (
 	// IdentifierTypes
 	Email    IdentifierType = "email"
@@ -31,6 +34,3 @@ type Identifier struct {
 	// Value of Identifier. Has to be unique for all types
 	Value string `gorm:"not null;uniqueIndex" validate:"required"`
 }
-
-// IdentifierType defines an Identifier Type
-type IdentifierType string
