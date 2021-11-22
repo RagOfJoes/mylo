@@ -82,3 +82,15 @@ type Service interface {
 	// merge new and old Contact that a user owns
 	Add(ctx context.Context, contacts ...Contact) ([]Contact, error)
 }
+
+func New(identityID uuid.UUID, value string) Contact {
+	return Contact{
+		State:      Sent,
+		Type:       Default,
+		Value:      value,
+		IdentityID: identityID,
+
+		Verified:   false,
+		VerifiedAt: nil,
+	}
+}

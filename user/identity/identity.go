@@ -50,3 +50,14 @@ type Service interface {
 	// Delete deletes an identity
 	Delete(ctx context.Context, id string, permanent bool) error
 }
+
+func New(firstName, lastName, email string) Identity {
+	return Identity{
+		FirstName: firstName,
+		LastName:  lastName,
+		Email:     email,
+
+		Credentials: []credential.Credential{},
+		Contacts:    []contact.Contact{},
+	}
+}
