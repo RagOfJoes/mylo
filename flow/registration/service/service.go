@@ -62,14 +62,7 @@ func (s *service) Submit(ctx context.Context, flow registration.Flow, payload re
 	if err := validate.Check(payload); err != nil {
 		return nil, internal.NewErrorf(internal.ErrorCodeInvalidArgument, "%v", err)
 	}
-	// Instantiate new identity
-	// TODO: Use identity function here to create identity
-	tempIdentity := identity.Identity{
-		Email:     payload.Email,
-		FirstName: payload.FirstName,
-		LastName:  payload.LastName,
-	}
-	// Create new identity
+	tempIdentity := identity.New(payload.FirstName, payload.LastName, payload.Email)
 	newUser, err := s.is.Create(ctx, tempIdentity, payload.Username, payload.Password)
 	if err != nil {
 		return nil, err
@@ -80,12 +73,9 @@ func (s *service) Submit(ctx context.Context, flow registration.Flow, payload re
 	// - Use Credential Service to create new password credential for user
 	var eg errgroup.Group
 	eg.Go(func() error {
+		newContact := contact.New(newUser.ID, payload.Email)
 		vc, err := s.cos.Add(ctx, []contact.Contact{
-			{
-				IdentityID: newUser.ID,
-				State:      contact.Sent,
-				Value:      payload.Email,
-			},
+			newContact,
 		}...)
 		if err != nil {
 			return internal.WrapErrorf(err, internal.ErrorCodeInvalidArgument, "%v", registration.ErrInvalidPaylod)
