@@ -58,4 +58,4 @@ USER mylo:mylo
 VOLUME /home/mylo
 
 # Run the binary.
-ENTRYPOINT ["/go/bin/lumpia"]
+ENTRYPOINT ["/go/bin/mylo"]

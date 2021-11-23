@@ -1,7 +1,7 @@
 version: "3.8"
 services:
   db:
-    container_name: "mylo-dev-pg"
+    container_name: "db"
     build:
       context: ./docker/
       dockerfile: Dockerfile.pg
@@ -13,7 +13,7 @@ services:
       - pgdata:/var/lib/postgresql/data
   dev:
     working_dir: /mylo
-    container_name: "mylo-dev"
+    container_name: "dev"
     build:
       context: .
       dockerfile: docker/Dockerfile.dev
