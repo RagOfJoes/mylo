@@ -74,10 +74,11 @@ func (g *gormUserRepository) Delete(ctx context.Context, id uuid.UUID, permanent
 			ID: id,
 		},
 	}
+	db := g.DB
 	if permanent {
-		g.DB.Unscoped()
+		db = db.Unscoped()
 	}
-	if err := g.DB.Select(clause.Associations).Delete(&i).Error; err != nil && err != gorm.ErrRecordNotFound {
+	if err := db.Select(clause.Associations).Delete(&i).Error; err != nil && err != gorm.ErrRecordNotFound {
 		return err
 	}
 	return nil
