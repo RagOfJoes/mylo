@@ -1,0 +1,19 @@
+version: "3.8"
+services:
+  workspace:
+    container_name: "workspace"
+    build:
+      context: .
+      dockerfile: .devcontainer/Dockerfile
+      args:
+        VARIANT: "1.17"
+        NODE_VERSION: "lts/*"
+    depends_on:
+      - db
+    cap_add:
+      - SYS_PTRACE
+    security_opt:
+      - seccomp:unconfined
+    volumes:
+      - .:/workspace:cached
+    command: /bin/sh -c "while sleep 1000; do :; done"
