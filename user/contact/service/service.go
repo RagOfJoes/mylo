@@ -20,7 +20,7 @@ func NewContactService(cr contact.Repository) contact.Service {
 
 func (s *service) Add(ctx context.Context, contacts ...contact.Contact) ([]contact.Contact, error) {
 	if len(contacts) == 0 {
-		return nil, internal.NewErrorf(internal.ErrorCodeInvalidArgument, "Must provide at least one contact")
+		return nil, internal.NewErrorf(internal.ErrorCodeInvalidArgument, "%s", contact.ErrContactInvalidLength)
 	}
 	identityID := contacts[0].IdentityID
 	if err := s.cr.DeleteAllUser(ctx, identityID); err != nil {

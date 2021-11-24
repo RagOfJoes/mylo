@@ -10,7 +10,8 @@ import (
 )
 
 var (
-	ErrContactDoesNotExist = errors.New("Contact does not exist")
+	ErrContactDoesNotExist  = errors.New("Contact does not exist")
+	ErrContactInvalidLength = errors.New("Must provide at least one contact")
 )
 
 // Type defines the type of contact
