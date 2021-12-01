@@ -27,7 +27,7 @@ type Credential struct {
 	CreatedAt time.Time  `gorm:"index;not null;default:current_timestamp" validate:"required"`
 	UpdatedAt *time.Time `gorm:"index;default:null"`
 
-	Type CredentialType `gorm:"index;not null" validate:"required,oneof='oidc' 'password'"`
+	Type Type `gorm:"index;not null" validate:"required,oneof='oidc' 'password'"`
 	// Depending on the type values stored in here
 	// will differ. For example:
 	// type: oidc
@@ -40,13 +40,13 @@ type Credential struct {
 	Identifiers []Identifier
 }
 
-// CredentialType defines a Credential Type
-type CredentialType string
+// Type defines a Credential Type
+type Type string
 
 const (
 	// CredentialTypes
-	OIDC     CredentialType = "oidc"
-	Password CredentialType = "password"
+	OIDC     Type = "oidc"
+	Password Type = "password"
 )
 
 // CredentialPassword defines the structure for
@@ -70,9 +70,9 @@ type Repository interface {
 	// GetIdentifier retrieves an identifier
 	GetIdentifier(ctx context.Context, identifier string) (*Identifier, error)
 	// GetWithIdentifier retrieves a credential with an identifier
-	GetWithIdentifier(ctx context.Context, credentialType CredentialType, identifier string) (*Credential, error)
+	GetWithIdentifier(ctx context.Context, credentialType Type, identifier string) (*Credential, error)
 	// GetWithIdentityID retrieves a credential with an identity id
-	GetWithIdentityID(ctx context.Context, credentialType CredentialType, identityID uuid.UUID) (*Credential, error)
+	GetWithIdentityID(ctx context.Context, credentialType Type, identityID uuid.UUID) (*Credential, error)
 	// Update updates a credential
 	Update(ctx context.Context, updateCredential Credential) (*Credential, error)
 	// Delete deletes a credential via id

@@ -32,7 +32,7 @@ func (g *gormCredentialRepository) GetIdentifier(ctx context.Context, id string)
 	return &identifier, nil
 }
 
-func (g *gormCredentialRepository) GetWithIdentifier(ctx context.Context, credentialType credential.CredentialType, id string) (*credential.Credential, error) {
+func (g *gormCredentialRepository) GetWithIdentifier(ctx context.Context, credentialType credential.Type, id string) (*credential.Credential, error) {
 	var password credential.Credential
 	var identifier credential.Identifier
 	if err := g.DB.First(&identifier, "LOWER(value) = LOWER(?)", id).Error; err != nil {
@@ -44,7 +44,7 @@ func (g *gormCredentialRepository) GetWithIdentifier(ctx context.Context, creden
 	return &password, nil
 }
 
-func (g *gormCredentialRepository) GetWithIdentityID(ctx context.Context, credentialType credential.CredentialType, identityID uuid.UUID) (*credential.Credential, error) {
+func (g *gormCredentialRepository) GetWithIdentityID(ctx context.Context, credentialType credential.Type, identityID uuid.UUID) (*credential.Credential, error) {
 	var found credential.Credential
 	if err := g.DB.Preload("Identifiers").First(&found, "type = ? AND identity_id = ?", credentialType, identityID).Error; err != nil {
 		return nil, err

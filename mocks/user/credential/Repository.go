@@ -77,11 +77,11 @@ func (_m *Repository) GetIdentifier(ctx context.Context, identifier string) (*cr
 }
 
 // GetWithIdentifier provides a mock function with given fields: ctx, credentialType, identifier
-func (_m *Repository) GetWithIdentifier(ctx context.Context, credentialType credential.CredentialType, identifier string) (*credential.Credential, error) {
+func (_m *Repository) GetWithIdentifier(ctx context.Context, credentialType credential.Type, identifier string) (*credential.Credential, error) {
 	ret := _m.Called(ctx, credentialType, identifier)
 
 	var r0 *credential.Credential
-	if rf, ok := ret.Get(0).(func(context.Context, credential.CredentialType, string) *credential.Credential); ok {
+	if rf, ok := ret.Get(0).(func(context.Context, credential.Type, string) *credential.Credential); ok {
 		r0 = rf(ctx, credentialType, identifier)
 	} else {
 		if ret.Get(0) != nil {
@@ -90,7 +90,7 @@ func (_m *Repository) GetWithIdentifier(ctx context.Context, credentialType cred
 	}
 
 	var r1 error
-	if rf, ok := ret.Get(1).(func(context.Context, credential.CredentialType, string) error); ok {
+	if rf, ok := ret.Get(1).(func(context.Context, credential.Type, string) error); ok {
 		r1 = rf(ctx, credentialType, identifier)
 	} else {
 		r1 = ret.Error(1)
@@ -100,11 +100,11 @@ func (_m *Repository) GetWithIdentifier(ctx context.Context, credentialType cred
 }
 
 // GetWithIdentityID provides a mock function with given fields: ctx, credentialType, identityID
-func (_m *Repository) GetWithIdentityID(ctx context.Context, credentialType credential.CredentialType, identityID uuid.UUID) (*credential.Credential, error) {
+func (_m *Repository) GetWithIdentityID(ctx context.Context, credentialType credential.Type, identityID uuid.UUID) (*credential.Credential, error) {
 	ret := _m.Called(ctx, credentialType, identityID)
 
 	var r0 *credential.Credential
-	if rf, ok := ret.Get(0).(func(context.Context, credential.CredentialType, uuid.UUID) *credential.Credential); ok {
+	if rf, ok := ret.Get(0).(func(context.Context, credential.Type, uuid.UUID) *credential.Credential); ok {
 		r0 = rf(ctx, credentialType, identityID)
 	} else {
 		if ret.Get(0) != nil {
@@ -113,7 +113,7 @@ func (_m *Repository) GetWithIdentityID(ctx context.Context, credentialType cred
 	}
 
 	var r1 error
-	if rf, ok := ret.Get(1).(func(context.Context, credential.CredentialType, uuid.UUID) error); ok {
+	if rf, ok := ret.Get(1).(func(context.Context, credential.Type, uuid.UUID) error); ok {
 		r1 = rf(ctx, credentialType, identityID)
 	} else {
 		r1 = ret.Error(1)

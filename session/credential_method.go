@@ -13,7 +13,7 @@ import (
 // CredentialMethod defines credential method used to authenticate User
 type CredentialMethod struct {
 	// Method is just that
-	Method credential.CredentialType `json:"method"`
+	Method credential.Type `json:"method"`
 	// IssuedAt defines the time when credential method was used successfully
 	IssuedAt time.Time `json:"issued_at"`
 }
