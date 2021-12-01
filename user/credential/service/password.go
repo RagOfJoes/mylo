@@ -17,10 +17,9 @@ var (
 	errIncompatibleVersion = errors.New("incompatible version of argon2")
 )
 
-func generateFromPassword(password string) (encodedHash string, err error) {
-	p := config.Get().Credential.Argon
+func generateFromPassword(cfg config.Argon, password string) (encodedHash string, err error) {
 	// Generate a cryptographically secure random salt.
-	salt, err := generateRandomBytes(p.SaltLength)
+	salt, err := generateRandomBytes(cfg.SaltLength)
 	if err != nil {
 		return "", err
 	}
@@ -28,14 +27,14 @@ func generateFromPassword(password string) (encodedHash string, err error) {
 	// Pass the plaintext password, salt and parameters to the argon2.IDKey
 	// function. This will generate a hash of the password using the Argon2id
 	// variant.
-	hash := argon2.IDKey([]byte(password), salt, p.Iterations, p.Memory, p.Parallelism, p.KeyLength)
+	hash := argon2.IDKey([]byte(password), salt, cfg.Iterations, cfg.Memory, cfg.Parallelism, cfg.KeyLength)
 
 	// Base64 encode the salt and hashed password.
 	b64Salt := base64.RawStdEncoding.EncodeToString(salt)
 	b64Hash := base64.RawStdEncoding.EncodeToString(hash)
 
 	// Return a string using the standard encoded hash representation.
-	encodedHash = fmt.Sprintf("$argon2id$v=%d$m=%d,t=%d,p=%d$%s$%s", argon2.Version, p.Memory, p.Iterations, p.Parallelism, b64Salt, b64Hash)
+	encodedHash = fmt.Sprintf("$argon2id$v=%d$m=%d,t=%d,p=%d$%s$%s", argon2.Version, cfg.Memory, cfg.Iterations, cfg.Parallelism, b64Salt, b64Hash)
 
 	return encodedHash, nil
 }

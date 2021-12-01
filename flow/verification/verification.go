@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/RagOfJoes/mylo/internal"
-	"github.com/RagOfJoes/mylo/internal/config"
 	"github.com/RagOfJoes/mylo/internal/validate"
 	"github.com/RagOfJoes/mylo/pkg/nanoid"
 	"github.com/RagOfJoes/mylo/ui/form"
@@ -124,7 +123,7 @@ func PasswordForm(action string) form.Form {
 }
 
 // NewLinkPending creates a new flow with LinkPending status
-func NewLinkPending(requestURL string, contactID uuid.UUID, identityID uuid.UUID) (*Flow, error) {
+func NewLinkPending(lifetime time.Duration, requestURL string, contactID uuid.UUID, identityID uuid.UUID) (*Flow, error) {
 	// Create new FlowID
 	flowID, err := nanoid.New()
 	if err != nil {
@@ -136,13 +135,12 @@ func NewLinkPending(requestURL string, contactID uuid.UUID, identityID uuid.UUID
 		return nil, internal.WrapErrorf(err, internal.ErrorCodeInternal, "Failed to generate nano id")
 	}
 
-	cfg := config.Get()
 	return &Flow{
 		FlowID:     flowID,
 		VerifyID:   verifyID,
 		RequestURL: requestURL,
 		Status:     LinkPending,
-		ExpiresAt:  time.Now().Add(cfg.Verification.Lifetime),
+		ExpiresAt:  time.Now().Add(lifetime),
 
 		Form:       nil,
 		ContactID:  contactID,
@@ -151,14 +149,13 @@ func NewLinkPending(requestURL string, contactID uuid.UUID, identityID uuid.UUID
 }
 
 // NewSessionWarn creates a new flow with SessionWarn status
-func NewSessionWarn(requestURL string, contactID uuid.UUID, identityID uuid.UUID) (*Flow, error) {
-	newFlow, err := NewLinkPending(requestURL, contactID, identityID)
+func NewSessionWarn(lifetime time.Duration, serverURL, requestURL string, contactID uuid.UUID, identityID uuid.UUID) (*Flow, error) {
+	newFlow, err := NewLinkPending(lifetime, requestURL, contactID, identityID)
 	if err != nil {
 		return nil, err
 	}
 
-	cfg := config.Get()
-	action := fmt.Sprintf("%s/%s/%s", cfg.Server.URL, cfg.Verification.URL, newFlow.FlowID)
+	action := fmt.Sprintf("%s/%s", serverURL, newFlow.FlowID)
 	form := PasswordForm(action)
 	newFlow.Form = &form
 	newFlow.Status = SessionWarn

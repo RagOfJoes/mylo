@@ -18,15 +18,18 @@ import (
 )
 
 type Http struct {
+	cfg config.Configuration
+
 	e  email.Client
 	sh sessionHttp.Http
 	s  recovery.Service
 	is identity.Service
 }
 
-func NewRecoveryHttp(e email.Client, sh sessionHttp.Http, s recovery.Service, is identity.Service, r *gin.Engine) {
-	cfg := config.Get()
+func NewRecoveryHttp(cfg config.Configuration, e email.Client, sh sessionHttp.Http, s recovery.Service, is identity.Service, r *gin.Engine) {
 	h := &Http{
+		cfg: cfg,
+
 		e:  e,
 		sh: sh,
 		s:  s,
@@ -107,39 +110,40 @@ func (h *Http) submitFlow() gin.HandlerFunc {
 				return
 			}
 			submitted, err := h.s.SubmitIdentifier(ctx, *flow, payload)
-			if err != nil && !errors.Is(recovery.ErrAccountDoesNotExist, err) {
+			if err != nil && !errors.Is(err, recovery.ErrAccountDoesNotExist) {
 				c.Error(err)
 				return
 			}
 
-			// Send recovery email in the background
-			// TODO: Look to add some dependency for callbacks on certain events
-			go func(flow recovery.Flow) {
-				if submitted.Status == recovery.LinkPending {
-					var emails []string
-					identity, err := h.is.Find(ctx, submitted.IdentityID.String())
-					if err != nil {
-						// TODO: Capture Error Here
-						return
-					}
+			if submitted != nil {
+				// Send recovery email in the background
+				// TODO: Look to add some dependency for callbacks on certain events
+				go func(flow recovery.Flow) {
+					if submitted.Status == recovery.LinkPending {
+						var emails []string
+						identity, err := h.is.Find(ctx, submitted.IdentityID.String())
+						if err != nil {
+							// TODO: Capture Error Here
+							return
+						}
 
-					if len(identity.Contacts) == 1 {
-						emails = append(emails, identity.Contacts[0].Value)
-					} else {
-						for _, c := range identity.Contacts {
-							if c.Type == contact.Backup && c.Verified && c.State == contact.Completed {
-								emails = append(emails, c.Value)
+						if len(identity.Contacts) == 1 {
+							emails = append(emails, identity.Contacts[0].Value)
+						} else {
+							for _, c := range identity.Contacts {
+								if c.Type == contact.Backup && c.Verified && c.State == contact.Completed {
+									emails = append(emails, c.Value)
+								}
 							}
 						}
+						recoveryURL := fmt.Sprintf("%s/%s/%s", h.cfg.Server.URL, h.cfg.Recovery.URL, flow.FlowID)
+						if err := h.e.SendRecovery(emails, recoveryURL); err != nil {
+							// TODO: Capture Error Here
+							log.Print(err)
+						}
 					}
-					cfg := config.Get()
-					recoveryURL := fmt.Sprintf("%s/%s/%s", cfg.Server.URL, cfg.Recovery.URL, flow.FlowID)
-					if err := h.e.SendRecovery(emails, recoveryURL); err != nil {
-						// TODO: Capture Error Here
-						log.Print(err)
-					}
-				}
-			}(*submitted)
+				}(*submitted)
+			}
 
 			c.JSON(http.StatusOK, transport.HttpResponse{
 				Success: true,

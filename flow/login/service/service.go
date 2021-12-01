@@ -2,9 +2,11 @@ package service
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/RagOfJoes/mylo/flow/login"
 	"github.com/RagOfJoes/mylo/internal"
+	"github.com/RagOfJoes/mylo/internal/config"
 	"github.com/RagOfJoes/mylo/internal/validate"
 	"github.com/RagOfJoes/mylo/user/contact"
 	"github.com/RagOfJoes/mylo/user/credential"
@@ -12,14 +14,18 @@ import (
 )
 
 type service struct {
+	cfg config.Configuration
+
 	r   login.Repository
 	cos contact.Service
 	cs  credential.Service
 	is  identity.Service
 }
 
-func NewLoginService(r login.Repository, cos contact.Service, cs credential.Service, is identity.Service) login.Service {
+func NewLoginService(cfg config.Configuration, r login.Repository, cos contact.Service, cs credential.Service, is identity.Service) login.Service {
 	return &service{
+		cfg: cfg,
+
 		r:   r,
 		cs:  cs,
 		is:  is,
@@ -28,7 +34,8 @@ func NewLoginService(r login.Repository, cos contact.Service, cs credential.Serv
 }
 
 func (s *service) New(ctx context.Context, requestURL string) (*login.Flow, error) {
-	newFlow, err := login.New(requestURL)
+	serverURL := fmt.Sprintf("%s/%s", s.cfg.Server.URL, s.cfg.Login.URL)
+	newFlow, err := login.New(s.cfg.Login.Lifetime, serverURL, requestURL)
 	if err != nil {
 		return nil, err
 	}

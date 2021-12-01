@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/RagOfJoes/mylo/internal"
-	"github.com/RagOfJoes/mylo/internal/config"
 	"github.com/RagOfJoes/mylo/internal/validate"
 	"github.com/RagOfJoes/mylo/pkg/nanoid"
 	"github.com/RagOfJoes/mylo/ui/form"
@@ -151,7 +150,7 @@ func RecoverForm(action string) form.Form {
 }
 
 // New creates a new flow with IdentifierPending status
-func New(requestURL string) (*Flow, error) {
+func New(lifetime time.Duration, serverURL, requestURL string) (*Flow, error) {
 	flowID, err := nanoid.New()
 	if err != nil {
 		return nil, internal.WrapErrorf(err, internal.ErrorCodeInternal, "Failed to generate nano id")
@@ -160,10 +159,8 @@ func New(requestURL string) (*Flow, error) {
 	if err != nil {
 		return nil, internal.WrapErrorf(err, internal.ErrorCodeInternal, "Failed to generate uuid")
 	}
-	cfg := config.Get()
-	expire := time.Now().Add(cfg.Recovery.Lifetime)
-	action := fmt.Sprintf("%s/%s/%s", cfg.Server.URL, cfg.Recovery.URL, flowID)
-	form := IdentifierForm(action)
+	expire := time.Now().Add(lifetime)
+	form := IdentifierForm(fmt.Sprintf("%s/%s", serverURL, flowID))
 	return &Flow{
 		FlowID:     flowID,
 		ExpiresAt:  expire,
@@ -202,16 +199,14 @@ func (f *Flow) Complete() {
 }
 
 // LinkPending updates flow to LinkPending status
-func (f *Flow) LinkPending(identityID uuid.UUID) error {
+func (f *Flow) LinkPending(serverURL string, identityID uuid.UUID) error {
 	if f.Status != IdentifierPending {
 		return internal.NewErrorf(internal.ErrorCodeInvalidArgument, "%v", internal.ErrInvalidExpiredFlow)
 	}
 
-	cfg := config.Get()
 	f.Status = LinkPending
 	f.IdentityID = &identityID
-	action := fmt.Sprintf("%s/%s/%s", cfg.Server.URL, cfg.Recovery.URL, f.RecoverID)
-	form := RecoverForm(action)
+	form := RecoverForm(fmt.Sprintf("%s/%s", serverURL, f.RecoverID))
 	f.Form = &form
 	return nil
 }

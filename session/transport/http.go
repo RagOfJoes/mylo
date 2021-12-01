@@ -12,12 +12,16 @@ import (
 )
 
 type Http struct {
+	cfg config.Configuration
+
 	st sessions.Store
 	se session.Service
 }
 
-func NewSessionHttp(st sessions.Store, se session.Service) *Http {
+func NewSessionHttp(cfg config.Configuration, st sessions.Store, se session.Service) *Http {
 	return &Http{
+		cfg: cfg,
+
 		st: st,
 		se: se,
 	}
@@ -55,8 +59,7 @@ func (h *Http) Upsert(ctx context.Context, upsertSession session.Session) (*sess
 
 // SetCookie sets provided session into cookie
 func (h *Http) SetCookie(req *http.Request, w http.ResponseWriter, s session.Session) error {
-	cfg := config.Get()
-	cookie, err := h.st.Get(req, cfg.Session.Cookie.Name)
+	cookie, err := h.st.Get(req, h.cfg.Session.Cookie.Name)
 	if err != nil {
 		return internal.WrapErrorf(err, internal.ErrorCodeInternal, "Failed to retrieve session from cookie store")
 	}
@@ -145,8 +148,7 @@ func (h *Http) getToken(req *http.Request) string {
 		return token
 	}
 	// Then check for cookie
-	cfg := config.Get()
-	cookie, err := h.st.Get(req, cfg.Session.Cookie.Name)
+	cookie, err := h.st.Get(req, h.cfg.Session.Cookie.Name)
 	if err != nil {
 		return ""
 	}

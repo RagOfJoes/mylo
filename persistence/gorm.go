@@ -19,9 +19,7 @@ import (
 	"gorm.io/gorm/logger"
 )
 
-func NewGorm() (db *gorm.DB, err error) {
-	cfg := config.Get()
-
+func NewGorm(cfg config.Configuration) (db *gorm.DB, err error) {
 	driver := cfg.Database.Driver
 	username := cfg.Database.Username
 	password := cfg.Database.Password

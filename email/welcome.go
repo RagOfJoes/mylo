@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 
 	"github.com/RagOfJoes/mylo/internal"
-	"github.com/RagOfJoes/mylo/internal/config"
 	"github.com/RagOfJoes/mylo/internal/validate"
 	"github.com/RagOfJoes/mylo/user/identity"
 	"github.com/sendgrid/sendgrid-go"
@@ -17,13 +16,9 @@ func (c *client) SendWelcome(to string, user identity.Identity, verificationURL 
 		return internal.WrapErrorf(err, internal.ErrorCodeInternal, "Value, %s, provided for the argument `to` must be a valid email.", to)
 	}
 	// Build payload
-	cfg := config.Get()
 	pay := Payload{
-		From: Email{
-			Name:  cfg.SendGrid.SenderName,
-			Email: cfg.SendGrid.SenderEmail,
-		},
-		TemplateID: cfg.SendGrid.WelcomeTemplateID,
+		From:       c.sender,
+		TemplateID: c.welcomeID,
 		Personalizations: []*Personalization{
 			{
 				To: []*Email{
@@ -33,7 +28,7 @@ func (c *client) SendWelcome(to string, user identity.Identity, verificationURL 
 					},
 				},
 				DynamicTemplateData: map[string]interface{}{
-					"ApplicationName": cfg.Name,
+					"ApplicationName": c.appName,
 					"FirstName":       user.FirstName,
 					"VerificationURL": verificationURL,
 				},
@@ -45,7 +40,7 @@ func (c *client) SendWelcome(to string, user identity.Identity, verificationURL 
 		return internal.WrapErrorf(err, internal.ErrorCodeInternal, "Failed to marshal payload")
 	}
 	// Make request to SendGrid
-	request := sendgrid.GetRequest(c.apiKey, "/v3/mail/send", c.host)
+	request := sendgrid.GetRequest(c.apiKey, "/v3/mail/send", "")
 	request.Method = "POST"
 	request.Body = body
 	if _, err := sendgrid.API(request); err != nil {

@@ -2,23 +2,29 @@ package service
 
 import (
 	"context"
+	"fmt"
 	"log"
 
 	"github.com/RagOfJoes/mylo/flow/recovery"
 	"github.com/RagOfJoes/mylo/internal"
+	"github.com/RagOfJoes/mylo/internal/config"
 	"github.com/RagOfJoes/mylo/internal/validate"
 	"github.com/RagOfJoes/mylo/user/contact"
 	"github.com/RagOfJoes/mylo/user/credential"
 )
 
 type service struct {
+	cfg config.Configuration
+
 	r   recovery.Repository
 	cs  credential.Service
 	cos contact.Service
 }
 
-func NewRecoveryService(r recovery.Repository, cs credential.Service, cos contact.Service) recovery.Service {
+func NewRecoveryService(cfg config.Configuration, r recovery.Repository, cs credential.Service, cos contact.Service) recovery.Service {
 	return &service{
+		cfg: cfg,
+
 		r:   r,
 		cs:  cs,
 		cos: cos,
@@ -26,7 +32,8 @@ func NewRecoveryService(r recovery.Repository, cs credential.Service, cos contac
 }
 
 func (s *service) New(ctx context.Context, requestURL string) (*recovery.Flow, error) {
-	newFlow, err := recovery.New(requestURL)
+	serverURL := fmt.Sprintf("%s/%s", s.cfg.Server.URL, s.cfg.Recovery.URL)
+	newFlow, err := recovery.New(s.cfg.Recovery.Lifetime, serverURL, requestURL)
 	if err != nil {
 		return nil, err
 	}
@@ -80,11 +87,12 @@ func (s *service) SubmitIdentifier(ctx context.Context, flow recovery.Flow, payl
 			// TODO: Capture Error Here
 			log.Print(err)
 		}
-		// Wrap error with internal code
-		return nil, internal.NewErrorf(internal.ErrorCodeInternal, "%v", err)
+		// It's backwards so we can use Is method
+		return nil, internal.WrapErrorf(recovery.ErrAccountDoesNotExist, internal.ErrorCodeInternal, "%v", err)
 	}
 	// Update flow to LinkPending
-	if err := flow.LinkPending(credential.IdentityID); err != nil {
+	serverURL := fmt.Sprintf("%s/%s", s.cfg.Server.URL, s.cfg.Recovery.URL)
+	if err := flow.LinkPending(serverURL, credential.IdentityID); err != nil {
 		return nil, err
 	}
 	updated, err := s.r.Update(ctx, flow)

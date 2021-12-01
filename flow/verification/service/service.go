@@ -2,10 +2,12 @@ package service
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"github.com/RagOfJoes/mylo/flow/verification"
 	"github.com/RagOfJoes/mylo/internal"
+	"github.com/RagOfJoes/mylo/internal/config"
 	"github.com/RagOfJoes/mylo/internal/validate"
 	"github.com/RagOfJoes/mylo/user/contact"
 	"github.com/RagOfJoes/mylo/user/credential"
@@ -13,14 +15,18 @@ import (
 )
 
 type service struct {
+	cfg config.Configuration
+
 	r   verification.Repository
 	cos contact.Service
 	cs  credential.Service
 	is  identity.Service
 }
 
-func NewVerificationService(r verification.Repository, cos contact.Service, cs credential.Service, is identity.Service) verification.Service {
+func NewVerificationService(cfg config.Configuration, r verification.Repository, cos contact.Service, cs credential.Service, is identity.Service) verification.Service {
 	return &service{
+		cfg: cfg,
+
 		r:   r,
 		cos: cos,
 		cs:  cs,
@@ -35,7 +41,7 @@ func (s *service) NewDefault(ctx context.Context, identity identity.Identity, co
 	if existing := s.getExistingFlow(ctx, contact); existing != nil {
 		return existing, nil
 	}
-	newFlow, err := verification.NewLinkPending(requestURL, contact.ID, identity.ID)
+	newFlow, err := verification.NewLinkPending(s.cfg.Verification.Lifetime, requestURL, contact.ID, identity.ID)
 	if err != nil {
 		return nil, err
 	}
@@ -53,7 +59,8 @@ func (s *service) NewSessionWarn(ctx context.Context, identity identity.Identity
 	if existing := s.getExistingFlow(ctx, contact); existing != nil {
 		return existing, nil
 	}
-	newFlow, err := verification.NewSessionWarn(requestURL, contact.ID, identity.ID)
+	serverURL := fmt.Sprintf("%s/%s", s.cfg.Server.URL, s.cfg.Verification.URL)
+	newFlow, err := verification.NewSessionWarn(s.cfg.Verification.Lifetime, serverURL, requestURL, contact.ID, identity.ID)
 	if err != nil {
 		return nil, err
 	}

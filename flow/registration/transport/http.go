@@ -19,15 +19,18 @@ import (
 )
 
 type Http struct {
+	cfg config.Configuration
+
 	e  email.Client
 	sh sessionHttp.Http
 	s  registration.Service
 	vs verification.Service
 }
 
-func NewRegistrationHttp(e email.Client, sh sessionHttp.Http, s registration.Service, vs verification.Service, r *gin.Engine) {
-	cfg := config.Get()
+func NewRegistrationHttp(cfg config.Configuration, e email.Client, sh sessionHttp.Http, s registration.Service, vs verification.Service, r *gin.Engine) {
 	h := &Http{
+		cfg: cfg,
+
 		e:  e,
 		sh: sh,
 		vs: vs,
@@ -112,7 +115,7 @@ func (h *Http) submitFlow() gin.HandlerFunc {
 			return
 		}
 		// Authenticate session with password credential method
-		if err := sess.Authenticate(*user, credential.Password); err != nil {
+		if err := sess.Authenticate(h.cfg.Session.Lifetime, *user, credential.Password); err != nil {
 			c.Error(err)
 			return
 		}
@@ -131,9 +134,7 @@ func (h *Http) submitFlow() gin.HandlerFunc {
 				log.Print(err)
 				return
 			}
-			cfg := config.Get()
-			url := fmt.Sprintf("%s/%s/%s", cfg.Server.URL, cfg.Verification.URL, vf.FlowID)
-			if err := h.e.SendWelcome(user.Contacts[0].Value, user, url); err != nil {
+			if err := h.e.SendWelcome(user.Contacts[0].Value, user, vf.Form.Action); err != nil {
 				// TODO: Capture error
 				log.Print(err)
 				return

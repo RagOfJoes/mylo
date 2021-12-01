@@ -2,9 +2,11 @@ package service
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/RagOfJoes/mylo/flow/registration"
 	"github.com/RagOfJoes/mylo/internal"
+	"github.com/RagOfJoes/mylo/internal/config"
 	"github.com/RagOfJoes/mylo/internal/validate"
 	"github.com/RagOfJoes/mylo/user/contact"
 	"github.com/RagOfJoes/mylo/user/credential"
@@ -13,14 +15,18 @@ import (
 )
 
 type service struct {
+	cfg config.Configuration
+
 	r   registration.Repository
 	cos contact.Service
 	cs  credential.Service
 	is  identity.Service
 }
 
-func NewRegistrationService(r registration.Repository, cos contact.Service, cs credential.Service, is identity.Service) registration.Service {
+func NewRegistrationService(cfg config.Configuration, r registration.Repository, cos contact.Service, cs credential.Service, is identity.Service) registration.Service {
 	return &service{
+		cfg: cfg,
+
 		r:   r,
 		cs:  cs,
 		is:  is,
@@ -29,7 +35,8 @@ func NewRegistrationService(r registration.Repository, cos contact.Service, cs c
 }
 
 func (s *service) New(ctx context.Context, requestURL string) (*registration.Flow, error) {
-	newFlow, err := registration.New(requestURL)
+	serverURL := fmt.Sprintf("%s/%s", s.cfg.Server.URL, s.cfg.Registration.URL)
+	newFlow, err := registration.New(s.cfg.Registration.Lifetime, serverURL, requestURL)
 	if err != nil {
 		return nil, err
 	}

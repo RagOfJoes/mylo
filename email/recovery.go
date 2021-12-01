@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 
 	"github.com/RagOfJoes/mylo/internal"
-	"github.com/RagOfJoes/mylo/internal/config"
 	"github.com/RagOfJoes/mylo/internal/validate"
 	"github.com/sendgrid/sendgrid-go"
 )
@@ -26,18 +25,14 @@ func (c *client) SendRecovery(to []string, recoveryURL string) error {
 		return validationErr
 	}
 	// Build payload
-	cfg := config.Get()
 	pay := Payload{
-		From: Email{
-			Name:  cfg.SendGrid.SenderName,
-			Email: cfg.SendGrid.SenderEmail,
-		},
-		TemplateID: cfg.SendGrid.RecoveryTemplateID,
+		From:       c.sender,
+		TemplateID: c.recoveryID,
 		Personalizations: []*Personalization{
 			{
 				To: emails,
 				DynamicTemplateData: map[string]interface{}{
-					"ApplicationName": cfg.Name,
+					"ApplicationName": c.appName,
 					"RecoveryURL":     recoveryURL,
 				},
 			},
@@ -48,7 +43,7 @@ func (c *client) SendRecovery(to []string, recoveryURL string) error {
 		return internal.WrapErrorf(err, internal.ErrorCodeInternal, "Failed to marshal payload")
 	}
 	// Make request to SendGrid
-	request := sendgrid.GetRequest(c.apiKey, "/v3/mail/send", c.host)
+	request := sendgrid.GetRequest(c.apiKey, "/v3/mail/send", "")
 	request.Method = "POST"
 	request.Body = body
 	if _, err := sendgrid.API(request); err != nil {

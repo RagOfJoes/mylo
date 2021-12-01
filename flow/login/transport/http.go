@@ -14,13 +14,16 @@ import (
 )
 
 type Http struct {
+	cfg config.Configuration
+
 	sh sessionHttp.Http
 	s  login.Service
 }
 
-func NewLoginHttp(sh sessionHttp.Http, s login.Service, r *gin.Engine) {
-	cfg := config.Get()
+func NewLoginHttp(cfg config.Configuration, sh sessionHttp.Http, s login.Service, r *gin.Engine) {
 	h := &Http{
+		cfg: cfg,
+
 		sh: sh,
 		s:  s,
 	}
@@ -102,7 +105,7 @@ func (h *Http) submitFlow() gin.HandlerFunc {
 			return
 		}
 		// Authenticate session with password credential method
-		if err := sess.Authenticate(*user, credential.Password); err != nil {
+		if err := sess.Authenticate(h.cfg.Session.Lifetime, *user, credential.Password); err != nil {
 			c.Error(err)
 			return
 		}

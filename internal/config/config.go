@@ -49,12 +49,7 @@ type Configuration struct {
 	SendGrid SendGrid
 }
 
-var c Configuration
-
-// Setup retrieves configuration provided
-// Override any default values
-// Initialize singleton object
-func Setup(filename string, filetype string, filepath string) error {
+func New(filename, filetype, filepath string) (*Configuration, error) {
 	conf := Configuration{
 		Environment: Development,
 
@@ -131,22 +126,17 @@ func Setup(filename string, filetype string, filepath string) error {
 	viper.AddConfigPath(".")
 
 	if err := viper.ReadInConfig(); err != nil {
-		return err
+		return nil, err
 	}
 	if err := viper.Unmarshal(&conf); err != nil {
-		return err
+		return nil, err
 	}
 	if err := validate.Check(conf); err != nil {
-		return err
+		return nil, err
 	}
 
-	c = conf
-	if err := setupServer(&c); err != nil {
-		return err
+	if err := setupServer(&conf); err != nil {
+		return nil, err
 	}
-	return nil
-}
-
-func Get() Configuration {
-	return c
+	return &conf, nil
 }

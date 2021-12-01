@@ -22,8 +22,7 @@ func RateLimiterMiddleware(rps int) gin.HandlerFunc {
 	}
 }
 
-func SecurityMiddleware() gin.HandlerFunc {
-	cfg := config.Get()
+func SecurityMiddleware(cfg config.Configuration) gin.HandlerFunc {
 	secureMiddleware := secure.New(cfg.Server.Security)
 	return func(c *gin.Context) {
 		err := secureMiddleware.Process(c.Writer, c.Request)

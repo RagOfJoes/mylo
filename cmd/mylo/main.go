@@ -32,24 +32,22 @@ import (
 	"github.com/gorilla/sessions"
 )
 
-func init() {
-	// Load configuration
-	if err := config.Setup("mylo", "yaml", "/home/mylo/"); err != nil {
-		log.Fatal(err)
-	}
-}
-
 func main() {
-	cfg := config.Get()
-
-	db, err := persistence.NewGorm()
+	cfgPtr, err := config.New("mylo", "yaml", "/home/mylo/")
 	if err != nil {
-		log.Panic(err.Error())
+		log.Panic(err)
+		return
+	}
+	cfg := *cfgPtr
+
+	db, err := persistence.NewGorm(cfg)
+	if err != nil {
+		log.Panic(err)
 		return
 	}
 
 	// Setup Email client
-	email := email.New()
+	email := email.New(cfg)
 
 	// Setup repositories
 	sessionRepository := sessionGorm.NewGormSessionRepository(db)
@@ -63,24 +61,21 @@ func main() {
 	// Setup services
 	sessionService := sessionService.NewSessionService(sessionRepository)
 	contactService := contactService.NewContactService(contactRepository)
-	credentialService := credentialService.NewCredentialService(credentialRepository)
 	identityService := identityService.NewIdentityService(identityRepository)
+	credentialService := credentialService.NewCredentialService(cfg, credentialRepository)
 	// Flow Services
 	// These will essentially stitch all other services together
-	verificationService := verificationService.NewVerificationService(verificationRepository, contactService, credentialService, identityService)
-	registrationService := registrationService.NewRegistrationService(registrationRepository, contactService, credentialService, identityService)
-	loginService := loginService.NewLoginService(loginRepository, contactService, credentialService, identityService)
-	recoveryService := recoveryService.NewRecoveryService(recoveryRepository, credentialService, contactService)
+	recoveryService := recoveryService.NewRecoveryService(cfg, recoveryRepository, credentialService, contactService)
+	loginService := loginService.NewLoginService(cfg, loginRepository, contactService, credentialService, identityService)
+	registrationService := registrationService.NewRegistrationService(cfg, registrationRepository, contactService, credentialService, identityService)
+	verificationService := verificationService.NewVerificationService(cfg, verificationRepository, contactService, credentialService, identityService)
 
 	// Create session manager
 	store := sessions.NewCookieStore([]byte(cfg.Session.Cookie.Name))
-	sessionHttp := sessionTransport.NewSessionHttp(store, sessionService)
-	if err != nil {
-		log.Panic(err)
-	}
+	sessionHttp := sessionTransport.NewSessionHttp(cfg, store, sessionService)
 
 	// Setup HTTP Server
-	router := transport.NewHttp()
+	router := transport.NewHttp(cfg)
 
 	// Attach Middlewares
 	//
@@ -91,17 +86,17 @@ func main() {
 	if cfg.Server.RPS > 0 {
 		router.Use(transport.RateLimiterMiddleware(cfg.Server.RPS))
 	}
-	router.Use(transport.SecurityMiddleware(), transport.ErrorMiddleware())
+	router.Use(transport.SecurityMiddleware(cfg), transport.ErrorMiddleware())
 
 	// Attach routes
 	identityTransport.NewIdentityHttp(*sessionHttp, router)
-	verificationTransport.NewVerificationHttp(email, *sessionHttp, verificationService, router)
-	registrationTransport.NewRegistrationHttp(email, *sessionHttp, registrationService, verificationService, router)
-	loginTransport.NewLoginHttp(*sessionHttp, loginService, router)
-	recoveryTransport.NewRecoveryHttp(email, *sessionHttp, recoveryService, identityService, router)
+	loginTransport.NewLoginHttp(cfg, *sessionHttp, loginService, router)
+	verificationTransport.NewVerificationHttp(cfg, email, *sessionHttp, verificationService, router)
+	recoveryTransport.NewRecoveryHttp(cfg, email, *sessionHttp, recoveryService, identityService, router)
+	registrationTransport.NewRegistrationHttp(cfg, email, *sessionHttp, registrationService, verificationService, router)
 
 	// Start HTTP server
-	if err := transport.RunHttp(router); err != nil {
+	if err := transport.RunHttp(cfg, router); err != nil {
 		log.Panic(err)
 	}
 }

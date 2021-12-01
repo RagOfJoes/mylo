@@ -18,14 +18,17 @@ import (
 )
 
 type Http struct {
+	cfg config.Configuration
+
 	e  email.Client
 	sh sessionHttp.Http
 	s  verification.Service
 }
 
-func NewVerificationHttp(e email.Client, sh sessionHttp.Http, s verification.Service, r *gin.Engine) {
-	cfg := config.Get()
+func NewVerificationHttp(cfg config.Configuration, e email.Client, sh sessionHttp.Http, s verification.Service, r *gin.Engine) {
 	h := &Http{
+		cfg: cfg,
+
 		e:  e,
 		sh: sh,
 		s:  s,
@@ -205,7 +208,6 @@ func getContact(identity identity.Identity, contactID string) *contact.Contact {
 }
 
 func (h *Http) sendEmail(identity identity.Identity, flow verification.Flow, contact contact.Contact) error {
-	cfg := config.Get()
-	url := fmt.Sprintf("%s/%s/%s", cfg.Server.URL, cfg.Verification.URL, flow.VerifyID)
+	url := fmt.Sprintf("%s/%s/%s", h.cfg.Server.URL, h.cfg.Verification.URL, flow.VerifyID)
 	return h.e.SendVerification(contact.Value, identity, url)
 }

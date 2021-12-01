@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/RagOfJoes/mylo/internal"
-	"github.com/RagOfJoes/mylo/internal/config"
 	"github.com/RagOfJoes/mylo/internal/validate"
 	"github.com/RagOfJoes/mylo/pkg/nanoid"
 	"github.com/RagOfJoes/mylo/ui/form"
@@ -148,16 +147,14 @@ func Form(action string) form.Form {
 }
 
 // New creates a new Flow
-func New(requestURL string) (*Flow, error) {
+func New(lifetime time.Duration, serverURL string, requestURL string) (*Flow, error) {
 	flowID, err := nanoid.New()
 	if err != nil {
 		return nil, internal.WrapErrorf(err, internal.ErrorCodeInternal, "Failed to generate nano id")
 	}
 
-	cfg := config.Get()
-	expire := time.Now().Add(cfg.Registration.Lifetime)
-	action := fmt.Sprintf("%s/%s/%s", cfg.Server.URL, cfg.Registration.URL, flowID)
-	form := Form(action)
+	expire := time.Now().Add(lifetime)
+	form := Form(fmt.Sprintf("%s/%s", serverURL, flowID))
 	return &Flow{
 		FlowID:     flowID,
 		Status:     Pending,

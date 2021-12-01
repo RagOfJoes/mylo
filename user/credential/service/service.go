@@ -13,17 +13,20 @@ import (
 )
 
 type service struct {
+	cfg config.Configuration
+
 	cr credential.Repository
 }
 
-func NewCredentialService(cr credential.Repository) credential.Service {
+func NewCredentialService(cfg config.Configuration, cr credential.Repository) credential.Service {
 	return &service{
+		cfg: cfg,
+
 		cr: cr,
 	}
 }
 
 func (s *service) CreatePassword(ctx context.Context, uid uuid.UUID, password string, identifiers []credential.Identifier) (*credential.Credential, error) {
-	cfg := config.Get()
 	// Get inputs to test password strength
 	var ids []string
 	for _, i := range identifiers {
@@ -31,11 +34,11 @@ func (s *service) CreatePassword(ctx context.Context, uid uuid.UUID, password st
 	}
 	// Test password strength
 	passStrength := zxcvbn.PasswordStrength(password, ids)
-	if passStrength.Score <= cfg.Credential.MinimumScore {
+	if passStrength.Score <= s.cfg.Credential.MinimumScore {
 		return nil, internal.NewErrorf(internal.ErrorCodeInvalidArgument, "%v", credential.ErrWeakPassword)
 	}
 	// Hash password
-	newPass, err := generateFromPassword(password)
+	newPass, err := generateFromPassword(s.cfg.Credential.Argon, password)
 	if err != nil {
 		return nil, internal.WrapErrorf(err, internal.ErrorCodeInternal, "%v", credential.ErrFailedGeneratePassword)
 	}
@@ -95,7 +98,6 @@ func (s *service) UpdatePassword(ctx context.Context, uid uuid.UUID, newPassword
 	if err != nil {
 		return nil, internal.WrapErrorf(err, internal.ErrorCodeNotFound, "The account doesn't exist or the account doesn't have a password credential setup")
 	}
-	cfg := config.Get()
 	// Get identifiers to test password strength
 	ids := []string{}
 	for _, id := range cred.Identifiers {
@@ -103,7 +105,7 @@ func (s *service) UpdatePassword(ctx context.Context, uid uuid.UUID, newPassword
 	}
 	// Test password strength
 	passStrength := zxcvbn.PasswordStrength(newPassword, ids)
-	if passStrength.Score <= cfg.Credential.MinimumScore {
+	if passStrength.Score <= s.cfg.Credential.MinimumScore {
 		return nil, internal.NewErrorf(internal.ErrorCodeInvalidArgument, "%v", credential.ErrWeakPassword)
 	}
 	// Compare new and old password
@@ -119,7 +121,7 @@ func (s *service) UpdatePassword(ctx context.Context, uid uuid.UUID, newPassword
 		return nil, internal.NewErrorf(internal.ErrorCodeInvalidArgument, "%v", credential.ErrInvalidIdentifierPassword)
 	}
 	// Create new password
-	newPass, err := generateFromPassword(newPassword)
+	newPass, err := generateFromPassword(s.cfg.Credential.Argon, newPassword)
 	if err != nil {
 		return nil, internal.WrapErrorf(err, internal.ErrorCodeInternal, "%v", credential.ErrFailedGeneratePassword)
 	}

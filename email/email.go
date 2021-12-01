@@ -6,7 +6,6 @@ import (
 
 type client struct {
 	sender  Email
-	host    string
 	apiKey  string
 	appName string
 	// Template ID for Welcome template
@@ -17,8 +16,7 @@ type client struct {
 	recoveryID string
 }
 
-func New() Client {
-	cfg := config.Get()
+func New(cfg config.Configuration) Client {
 	return &client{
 		appName: cfg.Name,
 		apiKey:  cfg.SendGrid.APIKey,

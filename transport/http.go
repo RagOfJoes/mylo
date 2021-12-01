@@ -28,8 +28,7 @@ type HttpResponse struct {
 }
 
 // NewHTTP returns a configured gin engine instance with some essential middlewares
-func NewHttp() *gin.Engine {
-	cfg := config.Get()
+func NewHttp(cfg config.Configuration) *gin.Engine {
 	ginEngine := gin.New()
 	// LoggerWithFormatter middleware will write the logs to gin.DefaultWriter
 	// By default gin.DefaultWriter = os.Stdout
@@ -54,8 +53,7 @@ func NewHttp() *gin.Engine {
 
 // RunHttp runs the http server with a graceful shutdown
 // functionality
-func RunHttp(handler http.Handler) error {
-	cfg := config.Get()
+func RunHttp(cfg config.Configuration, handler http.Handler) error {
 	// Create a new http server from gin engine
 	// instance
 	addr := resolveAddr(cfg.Server.Host, cfg.Server.Port)

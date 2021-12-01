@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/RagOfJoes/mylo/internal"
-	"github.com/RagOfJoes/mylo/internal/config"
 	"github.com/RagOfJoes/mylo/internal/validate"
 	"github.com/RagOfJoes/mylo/pkg/nanoid"
 	"github.com/RagOfJoes/mylo/user/credential"
@@ -113,12 +112,12 @@ func NewUnauthenticated() (*Session, error) {
 	}, nil
 }
 
-func NewAuthenticated(identity identity.Identity, methods ...credential.CredentialType) (*Session, error) {
+func NewAuthenticated(lifetime time.Duration, identity identity.Identity, methods ...credential.Type) (*Session, error) {
 	newSession, err := NewUnauthenticated()
 	if err != nil {
 		return nil, err
 	}
-	if err := newSession.Authenticate(identity, methods...); err != nil {
+	if err := newSession.Authenticate(lifetime, identity, methods...); err != nil {
 		return nil, err
 	}
 	return newSession, nil
@@ -137,7 +136,7 @@ func (s *Session) Valid() error {
 	return nil
 }
 
-func (s *Session) AddCredential(method credential.CredentialType) error {
+func (s *Session) AddCredential(method credential.Type) error {
 	if s.State == Locked {
 		return internal.NewErrorf(internal.ErrorCodeUnauthorized, "Account has been locked. Reset password to unlock account")
 	}
@@ -148,7 +147,7 @@ func (s *Session) AddCredential(method credential.CredentialType) error {
 	return nil
 }
 
-func (s *Session) Authenticate(identity identity.Identity, methods ...credential.CredentialType) error {
+func (s *Session) Authenticate(lifetime time.Duration, identity identity.Identity, methods ...credential.Type) error {
 	if s.State == Locked {
 		return internal.NewErrorf(internal.ErrorCodeUnauthorized, "Account has been locked. Reset password to unlock account")
 	}
@@ -158,9 +157,8 @@ func (s *Session) Authenticate(identity identity.Identity, methods ...credential
 		}
 	}
 
-	cfg := config.Get()
 	now := time.Now()
-	expire := now.Add(cfg.Session.Lifetime)
+	expire := now.Add(lifetime)
 	s.State = Authenticated
 	s.ExpiresAt = &expire
 	s.AuthenticatedAt = &now
