@@ -22,7 +22,19 @@ func (s *service) Add(ctx context.Context, contacts ...contact.Contact) ([]conta
 	if len(contacts) == 0 {
 		return nil, internal.NewErrorf(internal.ErrorCodeInvalidArgument, "%s", contact.ErrContactInvalidLength)
 	}
+
+	hashMap := map[string]bool{}
 	identityID := contacts[0].IdentityID
+	for _, co := range contacts {
+		if co.IdentityID != identityID {
+			return nil, internal.NewErrorf(internal.ErrorCodeInternal, "%s", contact.ErrContactNotMatchingIdentityID)
+		}
+		if hashMap[co.Value] {
+			return nil, internal.NewErrorf(internal.ErrorCodeInvalidArgument, "%s", contact.ErrContactValuesNotUnique)
+		}
+		hashMap[co.Value] = true
+	}
+
 	if err := s.cr.DeleteAllUser(ctx, identityID); err != nil {
 		return nil, internal.WrapErrorf(err, internal.ErrorCodeInternal, "Failed to delete contacts that belong to %s", identityID)
 	}

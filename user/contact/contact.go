@@ -10,8 +10,10 @@ import (
 )
 
 var (
-	ErrContactDoesNotExist  = errors.New("Contact does not exist")
-	ErrContactInvalidLength = errors.New("Must provide at least one contact")
+	ErrContactDoesNotExist          = errors.New("Contact does not exist")
+	ErrContactValuesNotUnique       = errors.New("Contacts must have unique values")
+	ErrContactInvalidLength         = errors.New("Must provide at least one contact")
+	ErrContactNotMatchingIdentityID = errors.New("Contact must all belong to the same user")
 )
 
 // Type defines the type of contact
